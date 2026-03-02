@@ -25,6 +25,7 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+app.use('/assets', express.static('assets'));
 
 // WebSocket server su porta 3001
 const WSPORT = process.env.WS_PORT ? parseInt(process.env.WS_PORT) : 3001;
