@@ -269,12 +269,7 @@ const App = () => {
             <h2 className="text-lg font-bold mb-4">Confermi il logout?</h2>
             <div className="flex justify-around gap-4">
               <button
-                onClick={() => {
-                  console.log("TEST NUCLEARE");
-                  // Usiamo il comando standard del browser saltando React
-                  window.navigator.sendBeacon(`http://localhost:3000/api/auth/logout`);
-                  window.location.reload();
-                }}
+                onClick={() => performLogout()}
                 className="px-4 py-2 bg-red-500 text-white rounded"
               >
                 Logout
@@ -283,11 +278,12 @@ const App = () => {
             </div>
           </div>
         </div>
-      )}
+      )
+      }
 
       {showProfilePopup && <UserProfile user={user} onClose={() => setShowProfilePopup(false)} />}
       {showReversePopup && <ReverseOrder onClose={() => setShowReversePopup(false)} />}
-    </div>
+    </div >
   );
 };
 

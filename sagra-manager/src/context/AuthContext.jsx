@@ -27,9 +27,26 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const login = (userData) => setUser(userData);
-    const logout = () => {
-        // Qui andrebbe anche una chiamata al backend per cancellare il cookie
-        setUser(null);
+    const logout = async () => {
+        try {
+            // 1. Facciamo la fetch e ASPETTIAMO (await) che il server dica "OK, cookie cancellato"
+            const response = await fetch(`${API_URL}/auth/logout`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+
+            if (!response.ok) {
+                throw new Error("Il server non ha collaborato");
+            }
+
+            // 2. SOLO DOPO che il server ha risposto, aggiorniamo lo stato di React
+            setUser(null);
+
+        } catch (err) {
+            console.error("Logout fallito:", err);
+            // Anche se fallisce, forse conviene fare setUser(null) comunque per sicurezza
+            setUser(null);
+        }
     };
 
     return (
