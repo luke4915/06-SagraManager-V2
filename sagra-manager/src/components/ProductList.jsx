@@ -3,12 +3,10 @@ import React, { useState, useMemo } from 'react';
 const ProductList = ({ products, addToCart }) => {
   const [activeCategory, setActiveCategory] = useState('TUTTI');
 
-  // Estrae le categorie uniche
   const categories = useMemo(() => {
     return ['TUTTI', ...new Set(products.map(p => p.category || 'Generico'))];
   }, [products]);
 
-  // Filtra i prodotti in base alla categoria selezionata
   const filteredProducts = useMemo(() => {
     if (activeCategory === 'TUTTI') return products;
     return products.filter(p => (p.category || 'Generico') === activeCategory);
@@ -16,7 +14,7 @@ const ProductList = ({ products, addToCart }) => {
 
   return (
     <div className="flex flex-col h-full relative">
-      {/* Categorie Sticky: Sempre visibili allo scroll */}
+      {/* Categorie Sticky */}
       <div className="sticky top-0 z-30 bg-[var(--bg-main)]/90 backdrop-blur-md pb-6 pt-2">
         <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">
           {categories.map(cat => (
@@ -34,28 +32,27 @@ const ProductList = ({ products, addToCart }) => {
         </div>
       </div>
 
-      {/* Grid Prodotti: Più densa per mostrare più roba */}
+      {/* Grid Prodotti */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 pb-10">
-        {filteredProducts.map(product => (
-          <button
-            key={product.id}
-            onClick={() => addToCart(product)}
-            className="group flex flex-col bg-white dark:bg-[#1c1f26] rounded-4xl p-5 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-transparent hover:border-orange-500/20"
-          >
-            <div className="w-10 h-1.5 rounded-full mb-4 shadow-inner" style={{ backgroundColor: product.color || '#3b82f6' }} />
-
-            <h3 className="text-[13px] font-black text-gray-800 dark:text-gray-100 uppercase tracking-tighter mb-6 text-left h-10 overflow-hidden leading-tight group-hover:text-orange-500 transition-colors">
-              {product.name}
-            </h3>
-
-            <div className="flex items-center justify-between mt-auto">
-              <span className="text-xl font-black">{product.price.toFixed(2)}€</span>
-              <div className="w-10 h-10 rounded-2xl bg-gray-50 dark:bg-gray-800 flex items-center justify-center group-hover:bg-orange-500 group-hover:text-white transition-all shadow-sm">
-                <span className="text-2xl font-light leading-none">+</span>
+        {filteredProducts.map(product => {
+          const nameLen = product.name.length;
+          const nameSizeClass = nameLen > 14 ? 'text-sm' : nameLen > 9 ? 'text-base' : 'text-lg';
+          return (
+            <button
+              key={product.id}
+              onClick={() => addToCart(product)}
+              className="group flex flex-col bg-white dark:bg-[#1c1f26] rounded-4xl p-4 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-transparent hover:border-orange-500/20"
+            >
+              <div className="w-8 h-1.5 rounded-full mb-3 shadow-inner" style={{ backgroundColor: product.color || '#3b82f6' }} />
+              <h3 className={`${nameSizeClass} font-black text-gray-800 dark:text-gray-100 uppercase tracking-tighter mb-3 text-left leading-tight group-hover:text-orange-500 transition-colors`}>
+                {product.name}
+              </h3>
+              <div className="mt-auto">
+                <span className="text-base font-black text-gray-700 dark:text-gray-300">{product.price.toFixed(2)}€</span>
               </div>
-            </div>
-          </button>
-        ))}
+            </button>
+          );
+        })}
       </div>
 
       {filteredProducts.length === 0 && (
