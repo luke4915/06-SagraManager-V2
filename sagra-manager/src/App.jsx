@@ -40,8 +40,14 @@ const App = () => {
   const [isSoundEnabled, setIsSoundEnabled] = useState(true);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showProfilePopup, setShowProfilePopup] = useState(false);
+
+  // Stati Gestione Sessione e Modali dedicati
   const [sessionActive, setSessionActive] = useState(false);
   const [sessionName, setSessionName] = useState("");
+  const [showStartSessionModal, setShowStartSessionModal] = useState(false);
+  const [showEndSessionModal, setShowEndSessionModal] = useState(false);
+  const [inputSessionName, setInputSessionName] = useState("");
+
   const [orderMode, setOrderMode] = useState("simple");
 
   const audioCtxRef = useRef(null);
@@ -123,6 +129,15 @@ const App = () => {
             setProducts(prev => prev.filter(p => p.id !== msg.id));
             showToast(`Prodotto rimosso!`, "warning");
             break;
+          // Integrazione opzionale se il server invia messaggi di sessione broadcast via WS
+          case "session_started":
+            setSessionActive(true);
+            setSessionName(msg.session.name);
+            break;
+          case "session_ended":
+            setSessionActive(false);
+            setSessionName("");
+            break;
           default: break;
         }
       } catch (err) { console.error("WS Parsing Error", err); }
@@ -149,6 +164,7 @@ const App = () => {
   );
 
   const sendOrder = async () => {
+    if (!sessionActive) return showToast("Nessuna sessione attiva! Apri una sessione per procedere.", "error");
     if (cart.length === 0) return showToast("Carrello vuoto!", "error");
     try {
       const orderPayload = {
@@ -174,6 +190,66 @@ const App = () => {
     } catch (err) { showToast("Errore durante l'invio", "error"); }
   };
 
+  // Intercettore del pulsante sessione proveniente dalla Sidebar
+  const handleSessionToggleClick = (targetState) => {
+    // FIX: Se targetState non è un booleano (es. è un evento o undefined), 
+    // decidiamo l'azione basandoci sul contrario dello stato attuale della sessione.
+    const shouldActivate = typeof targetState === 'boolean' ? targetState : !sessionActive;
+
+    if (shouldActivate) {
+      // L'utente vuole attivare una sessione -> Apri il modale di inserimento nome
+      setInputSessionName("");
+      setShowStartSessionModal(true);
+    } else {
+      // L'utente vuole disattivare una sessione -> Chiedi conferma nel relativo modale
+      setShowEndSessionModal(true);
+    }
+  };
+
+  // Chiamata API Creazione Sessione
+  const handleStartSessionSubmit = async (e) => {
+    e.preventDefault();
+    if (!inputSessionName.trim()) {
+      showToast("Inserisci un nome valido!", "warning");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/sessions/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: inputSessionName.trim() })
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || "Errore db");
+
+      setSessionActive(true);
+      setSessionName(data.name);
+      setShowStartSessionModal(false);
+      showToast(`Sessione "${data.name}" avviata con successo!`, "success");
+    } catch (err) {
+      showToast(err.message || "Impossibile avviare la sessione", "error");
+    }
+  };
+
+  // Chiamata API Chiusura Sessione
+  const handleEndSessionConfirm = async () => {
+    try {
+      const res = await fetch(`${API_URL}/sessions/end`, { method: "POST" });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || "Errore db");
+
+      setSessionActive(false);
+      setSessionName("");
+      setShowEndSessionModal(false);
+      showToast("Sessione terminata e salvata correttamente.", "info");
+    } catch (err) {
+      showToast(err.message || "Impossibile chiudere la sessione", "error");
+    }
+  };
+
   const performLogout = async () => {
     try {
       await logout();
@@ -182,7 +258,7 @@ const App = () => {
     } catch (err) { console.error(err); }
   };
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-gray-950">Caricamento...</div>;
+  if (loading) return <div className="h-screen flex items-center justify-center bg-[var(--bg-main)] text-[var(--text-main)]">Caricamento...</div>;
   if (!user) return <Login onLogin={login} />;
   if (needsPasswordChange) return <ChangePassword user={user} onPasswordChanged={() => setNeedsPasswordChange(false)} />;
 
@@ -193,7 +269,7 @@ const App = () => {
         view={view} setView={setView}
         isOpen={isSidebarOpen} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         currentUser={user}
-        sessionActive={sessionActive} setSessionActive={setSessionActive}
+        sessionActive={sessionActive} setSessionActive={handleSessionToggleClick}
         sessionName={sessionName} setSessionName={setSessionName}
       />
 
@@ -210,7 +286,7 @@ const App = () => {
         />
 
         <div className="flex-1 flex overflow-hidden p-4 gap-4">
-          <div className="flex-1 overflow-y-auto no-scrollbar bg-white/40 dark:bg-white/5 rounded-5xl p-6">
+          <div className="flex-1 overflow-y-auto no-scrollbar bg-[var(--bg-card)] rounded-5xl p-6">
             {view === 'dashboard' && <ProductList products={products} addToCart={addToCart} />}
             {view === 'setup' && (
               <div className="space-y-6">
@@ -219,7 +295,7 @@ const App = () => {
                 <PrintProfiles />
               </div>
             )}
-            {view === 'config' && <ProductConfig />}
+            {view === 'config' && <ProductConfig products={products} setProducts={setProducts} />}
             {view === 'kitchen' && <OrdersKitchen />}
             {view === 'statistics' && <Statistics />}
           </div>
@@ -246,14 +322,89 @@ const App = () => {
         </div>
       </main>
 
-      {/* Modali */}
+      {/* Modale di Conferma LOGOUT */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[2000]">
-          <div className="bg-white dark:bg-gray-800 p-8 rounded-5xl shadow-2xl w-96 text-center border border-white/10">
-            <h2 className="text-2xl font-black mb-6">Sei sicuro?</h2>
+          <div className="bg-[var(--bg-card)] p-8 rounded-5xl shadow-2xl w-96 text-center border border-[var(--border)]">
+            <h2 className="text-2xl font-black mb-6 text-[var(--text-main)]">Sei sicuro?</h2>
             <div className="flex justify-center gap-4">
               <button onClick={performLogout} className="px-8 py-3 bg-red-500 text-white rounded-2xl font-bold shadow-lg shadow-red-500/30">LOGOUT</button>
-              <button onClick={() => setShowLogoutConfirm(false)} className="px-8 py-3 bg-gray-200 dark:bg-gray-700 rounded-2xl font-bold">ANNULLA</button>
+              <button onClick={() => setShowLogoutConfirm(false)} className="px-8 py-3 bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] rounded-2xl font-bold">ANNULLA</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modale 1: CREAZIONE NUOVA SESSIONE */}
+      {showStartSessionModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[2000]">
+          <form onSubmit={handleStartSessionSubmit} className="bg-[var(--bg-card)] p-8 rounded-5xl shadow-2xl w-[450px] border border-[var(--border)] space-y-6">
+            <div className="text-center">
+              <h2 className="text-2xl font-black text-[var(--text-main)]">Apri Nuova Sessione</h2>
+              <p className="text-sm text-gray-400 mt-1">Assegna un nome o specifica il turno attuale</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider mb-2 text-gray-400">Nome Sessione / Turno</label>
+              <input
+                type="text"
+                autoFocus
+                placeholder="Es. Turno Sera Sabato, Pranzo Domenica..."
+                value={inputSessionName}
+                onChange={(e) => setInputSessionName(e.target.value)}
+                className="w-full px-4 py-3.5 rounded-2xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] placeholder-gray-500 font-medium focus:outline-none focus:border-emerald-500 transition-all"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowStartSessionModal(false)}
+                className="flex-1 py-3 bg.transparent border border-[var(--border)] text-[var(--text-main)] rounded-2xl font-bold transition-all hover:bg-gray-500/10"
+              >
+                ANNULLA
+              </button>
+              <button
+                type="submit"
+                className="flex-1 py-3 bg-emerald-500 text-white rounded-2xl font-bold shadow-lg shadow-emerald-500/20 transition-all hover:bg-emerald-600"
+              >
+                AVVIA TURNO
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modale 2: CHIUSURA SESSIONE CORRENTE */}
+      {showEndSessionModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[2000]">
+          <div className="bg-[var(--bg-card)] p-8 rounded-5xl shadow-2xl w-[450px] text-center border border-[var(--border)] space-y-6">
+            <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center justify-center mx-auto text-amber-500">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-8 h-8">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-[var(--text-main)]">Terminare Sessione?</h2>
+              <p className="text-sm text-gray-400 mt-2">
+                Stai per chiudere la sessione attiva <span className="font-bold text-[var(--text-main)]">"{sessionName}"</span>.<br />
+                I prossimi ordini saranno bloccati fino all'apertura di un nuovo turno.
+              </p>
+            </div>
+
+            <div className="flex justify-center gap-4 pt-2">
+              <button
+                onClick={() => setShowEndSessionModal(false)}
+                className="flex-1 py-3 bg-transparent border border-[var(--border)] text-[var(--text-main)] rounded-2xl font-bold transition-all hover:bg-gray-500/10"
+              >
+                ANNULLA
+              </button>
+              <button
+                onClick={handleEndSessionConfirm}
+                className="flex-1 py-3 bg-amber-500 text-white rounded-2xl font-bold shadow-lg shadow-amber-500/20 transition-all hover:bg-amber-600"
+              >
+                CONFERMA CHIUSURA
+              </button>
             </div>
           </div>
         </div>

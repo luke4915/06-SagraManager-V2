@@ -57,7 +57,12 @@ const OrdersKitchen = () => {
   const markAsCompleted = async (orderId) => {
     if (!orderId) return;
     try {
-      const res = await fetch(`${API_URL}/orders/${orderId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: 'completed' }) });
+      const res = await fetch(`${API_URL}/orders/${orderId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status: 'completed' })
+      });
       if (!res.ok) throw new Error();
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'completed' } : o));
       showToast(`Ordine ${orderId} completato!`, "success");
@@ -100,7 +105,7 @@ const OrdersKitchen = () => {
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-4xl font-black tracking-tighter text-gray-900 dark:text-gray-100">CUCINA</h2>
+          <h2 className="text-4xl font-black tracking-tighter text-[var(--text-main)]">CUCINA</h2>
           <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-1">
             {pending.length} in attesa · {completed.length} completati
           </p>
@@ -114,7 +119,7 @@ const OrdersKitchen = () => {
       </div>
 
       {scanning && (
-        <div className="bg-white dark:bg-[#1c1f26] rounded-2xl p-5 border border-gray-100 dark:border-gray-800 flex flex-col items-center gap-3">
+        <div className="bg-[var(--bg-card)] rounded-2xl p-5 border border-[var(--border)] flex flex-col items-center gap-3">
           <div className="relative w-full max-w-xs aspect-video rounded-xl overflow-hidden border-2 border-orange-500">
             <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
             <div className="absolute inset-0 border-2 border-dashed border-white/30 m-4 pointer-events-none rounded-lg" />
@@ -133,12 +138,12 @@ const OrdersKitchen = () => {
             <div
               key={order.id}
               className={`rounded-2xl p-5 border-l-4 transition-all ${order.status === 'completed'
-                ? 'bg-white dark:bg-[#1c1f26] border-gray-200 dark:border-gray-700 opacity-50'
-                : 'bg-white dark:bg-[#1c1f26] border-orange-500 shadow-sm hover:shadow-lg'
+                ? 'bg-[var(--bg-card)] border-[var(--border)] opacity-50'
+                : 'bg-[var(--bg-card)] border-orange-500 shadow-sm hover:shadow-lg'
                 }`}
             >
               <div className="flex justify-between items-center mb-3">
-                <span className={`font-black text-sm tracking-widest uppercase ${order.status === 'completed' ? 'line-through text-gray-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                <span className={`font-black text-sm tracking-widest uppercase ${order.status === 'completed' ? 'line-through text-gray-400' : 'text-[var(--text-main)]'}`}>
                   #{order.id}
                 </span>
                 <span className="text-[10px] font-bold text-gray-400 tabular-nums">
@@ -150,7 +155,7 @@ const OrdersKitchen = () => {
                   <li key={idx}>
                     <div className="flex items-baseline gap-2">
                       <span className="text-orange-500 font-black text-sm">×{item.quantity}</span>
-                      <span className="font-bold text-sm text-gray-800 dark:text-gray-200 uppercase">{item.name}</span>
+                      <span className="font-bold text-sm text-[var(--text-main)] uppercase">{item.name}</span>
                     </div>
                     {item.note && (
                       <div className="ml-6 mt-0.5 px-2 py-0.5 bg-yellow-50 dark:bg-yellow-900/20 border-l-2 border-yellow-400 text-xs text-yellow-700 dark:text-yellow-300 italic">

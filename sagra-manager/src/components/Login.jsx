@@ -57,7 +57,7 @@ const Login = ({ onLogin }) => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-[var(--bg-main)]">
 
       {/* LOGO */}
       <img
@@ -66,7 +66,7 @@ const Login = ({ onLogin }) => {
         className="w-40 mb-6 drop-shadow-md border-2 border-black bg-white p-2"
       />
 
-      <h1 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">
+      <h1 className="text-2xl font-black mb-6 text-[var(--text-main)]">
         Login Sagra Manager V2
       </h1>
 
@@ -77,7 +77,7 @@ const Login = ({ onLogin }) => {
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="p-2 rounded border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+          className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] focus:ring-2 focus:ring-orange-500 outline-none placeholder:text-[var(--text-muted)]"
         />
         <input
           type="password"
@@ -85,12 +85,12 @@ const Login = ({ onLogin }) => {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="p-2 rounded border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+          className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] focus:ring-2 focus:ring-orange-500 outline-none placeholder:text-[var(--text-muted)]"
         />
         <button
           onClick={handleLogin}
           disabled={loading}
-          className={`px-4 py-2 bg-blue-500 text-white rounded font-semibold hover:bg-blue-600 transition-all shadow-md ${loading ? "opacity-50 cursor-not-allowed" : ""
+          className={`w-full py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-black text-sm uppercase tracking-widest shadow-lg shadow-orange-500/30 transition-all ${loading ? "opacity-50 cursor-not-allowed" : ""
             }`}
         >
           {loading ? "Accesso in corso..." : "Login"}

@@ -6,26 +6,33 @@
 }
 
 :root {
-  --bg-main: #f3f4f6;
+  --bg-main: #f1f5f9;
   --bg-card: #ffffff;
-  --text-main: #111827;
+  --bg-card-2: #f8fafc;
+  --bg-input: #f1f5f9;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
 }
 
 .dark {
   --bg-main: #0a0b0d;
   --bg-card: #16181d;
+  --bg-card-2: #1c1f26;
+  --bg-input: #1c1f26;
   --text-main: #f9fafb;
+  --text-muted: #9ca3af;
+  --border: #1f2937;
 }
 
 body {
-  @apply transition-colors duration-500;
   background-color: var(--bg-main);
   color: var(--text-main);
   font-family: 'Inter', system-ui, sans-serif;
   overflow: hidden;
+  transition: background-color 0.3s, color 0.3s;
 }
 
-/* Scrollbar Custom */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -35,7 +42,8 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-300 dark:bg-gray-700 rounded-full;
+  background: var(--border);
+  border-radius: 999px;
 }
 
 .no-scrollbar::-webkit-scrollbar {

@@ -8,6 +8,7 @@ const UserProfile = ({ user, onClose, showToast, setCurrentUser }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  // 🔹 Stato per creazione nuovo utente
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState('user');
@@ -15,18 +16,25 @@ const UserProfile = ({ user, onClose, showToast, setCurrentUser }) => {
 
   const handleSave = async () => {
     try {
+      // 1️⃣ AGGIORNAMENTO USERNAME
       if (username !== user.username) {
         const res = await fetch(`${API_URL}/profile/username`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ newUsername: username }),
+          credentials: "include", // ✅ Fondamentale per i cookie
+          body: JSON.stringify({
+            // userId non serve passarlo nel body se il backend lo prende dal token (req.user.id)
+            newUsername: username,
+          }),
         });
+
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Errore aggiornamento username");
+
         setCurrentUser(prev => ({ ...prev, username }));
       }
 
+      // 2️⃣ AGGIORNAMENTO PASSWORD
       if (newPassword) {
         if (!oldPassword) {
           showToast("Inserisci la vecchia password!", "error");
@@ -37,16 +45,18 @@ const UserProfile = ({ user, onClose, showToast, setCurrentUser }) => {
           return;
         }
 
+        // ❌ RIMOSSO: const token = localStorage.getItem('token');
         const res = await fetch(`${API_URL}/auth/change-password`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          credentials: "include",
+          credentials: "include", // ✅ Fondamentale per i cookie
           body: JSON.stringify({
             userId: user.id,
             oldPassword,
             newPassword,
           }),
         });
+
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Errore aggiornamento password");
       }
@@ -59,6 +69,7 @@ const UserProfile = ({ user, onClose, showToast, setCurrentUser }) => {
     }
   };
 
+  // 🔹 Crea nuovo utente (solo admin)
   const handleCreateUser = async () => {
     if (!newUserName) {
       showToast("Inserisci un nome utente!", "error");
@@ -66,15 +77,22 @@ const UserProfile = ({ user, onClose, showToast, setCurrentUser }) => {
     }
     setIsCreating(true);
     try {
+      // ❌ RIMOSSO: const token = localStorage.getItem('token'); 
+
       const res = await fetch(`${API_URL}/auth/admin/createUser`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          // ❌ RIMOSSO: "Authorization": `Bearer ${token}`,
+        },
+        // ✅ AGGIUNTO: permette l'invio automatico del cookie 'token'
         credentials: "include",
         body: JSON.stringify({
           username: newUserName,
           role: newUserRole,
         }),
       });
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Errore creazione utente");
 
@@ -90,93 +108,95 @@ const UserProfile = ({ user, onClose, showToast, setCurrentUser }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-      <div className="bg-white dark:bg-[#1c1f26] border border-gray-100 dark:border-gray-800 p-6 rounded-2xl shadow-xl w-full max-w-sm transform transition-all duration-200">
-        <div className="mb-6">
-          <h2 className="text-xl font-black tracking-tighter text-gray-900 dark:text-gray-50 uppercase">Gestione Profilo</h2>
-          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-0.5">Aggiorna credenziali o aggiungi staff</p>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50">
+      <div className="bg-[var(--bg-card)] p-8 rounded-3xl shadow-2xl w-full max-w-md border border-[var(--border)]">
+        <h2 className="text-2xl font-black tracking-tighter text-[var(--text-main)] mb-6">
+          Gestione Profilo
+        </h2>
+
+        {/* Username */}
+        <div className="mb-3">
+          <label className="block text-xs font-black uppercase tracking-widest text-[var(--text-muted)] mb-1">Nome utente</label>
+          <input
+            type="text"
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+            className="w-full p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-orange-500"
+          />
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 block mb-1">Nome utente</label>
-            <input
-              type="text"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              className="w-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium outline-none text-gray-900 dark:text-gray-100"
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 block mb-1">Vecchia password</label>
-            <input
-              type="password"
-              value={oldPassword}
-              onChange={e => setOldPassword(e.target.value)}
-              className="w-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium outline-none text-gray-900 dark:text-gray-100"
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 block mb-1">Nuova password</label>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={e => setNewPassword(e.target.value)}
-              className="w-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium outline-none text-gray-900 dark:text-gray-100"
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 block mb-1">Conferma nuova password</label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={e => setConfirmPassword(e.target.value)}
-              className="w-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium outline-none text-gray-900 dark:text-gray-100"
-            />
-          </div>
+        {/* Vecchia password */}
+        <div className="mb-3">
+          <label className="block text-xs font-black uppercase tracking-widest text-[var(--text-muted)] mb-1">Vecchia password</label>
+          <input
+            type="password"
+            value={oldPassword}
+            onChange={e => setOldPassword(e.target.value)}
+            className="w-full p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-orange-500"
+          />
         </div>
 
-        {user.role === 'admin' && !showCreateUser && (
+        {/* Nuova password */}
+        <div className="mb-3">
+          <label className="block text-xs font-black uppercase tracking-widest text-[var(--text-muted)] mb-1">Nuova password</label>
+          <input
+            type="password"
+            value={newPassword}
+            onChange={e => setNewPassword(e.target.value)}
+            className="w-full p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-orange-500"
+          />
+        </div>
+
+        {/* Conferma nuova password */}
+        <div className="mb-4">
+          <label className="block text-xs font-black uppercase tracking-widest text-[var(--text-muted)] mb-1">Conferma nuova password</label>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={e => setConfirmPassword(e.target.value)}
+            className="w-full p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-orange-500"
+          />
+        </div>
+
+        {/* Crea nuovo utente (solo admin) */}
+        {user.role === 'admin' && (
           <button
             onClick={() => setShowCreateUser(true)}
-            className="w-full mt-5 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors shadow-md shadow-emerald-600/10"
+            className="w-full mb-3 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-green-500/20 transition-all"
           >
             Crea nuovo utente
           </button>
         )}
 
         {showCreateUser && (
-          <div className="border-t border-gray-100 dark:border-gray-800 pt-4 mt-4 space-y-3">
-            <h3 className="text-xs font-black uppercase tracking-widest text-gray-900 dark:text-gray-100">Nuovo utente staff</h3>
+          <div className="border-t border-[var(--border)] pt-4 mt-4">
+            <h3 className="font-black text-sm uppercase tracking-widest text-[var(--text-muted)] mb-3">Nuovo utente</h3>
             <input
               type="text"
               placeholder="Username"
               value={newUserName}
               onChange={e => setNewUserName(e.target.value)}
-              className="w-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium outline-none text-gray-900 dark:text-gray-100"
+              className="w-full p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-orange-500 mb-2"
             />
             <select
               value={newUserRole}
               onChange={e => setNewUserRole(e.target.value)}
-              className="w-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium outline-none text-gray-900 dark:text-gray-100"
+              className="w-full p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-orange-500 mb-3"
             >
-              <option value="user">User (Cassa)</option>
+              <option value="user">User</option>
               <option value="admin">Admin</option>
             </select>
-            <div className="flex gap-2 pt-1">
+            <div className="flex justify-between">
               <button
                 onClick={handleCreateUser}
                 disabled={isCreating}
-                className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors disabled:opacity-50"
+                className="px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all"
               >
-                {isCreating ? 'Creazione...' : 'Conferma'}
+                {isCreating ? 'Creazione...' : 'Crea'}
               </button>
               <button
                 onClick={() => setShowCreateUser(false)}
-                className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors"
+                className="px-4 py-2.5 bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] rounded-xl font-black text-xs uppercase tracking-widest transition-all"
               >
                 Annulla
               </button>
@@ -184,17 +204,18 @@ const UserProfile = ({ user, onClose, showToast, setCurrentUser }) => {
           </div>
         )}
 
+        {/* --- BOTTONI FINALI --- */}
         {!showCreateUser && (
-          <div className="flex gap-2 mt-6 border-t border-gray-100 dark:border-gray-800 pt-4">
+          <div className="flex justify-between mt-6 gap-3">
             <button
               onClick={handleSave}
-              className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors shadow-md shadow-indigo-500/10"
+              className="px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-orange-500/20 transition-all"
             >
               Salva
             </button>
             <button
               onClick={onClose}
-              className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors"
+              className="px-4 py-2.5 bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] rounded-xl font-black text-xs uppercase tracking-widest transition-all"
             >
               Chiudi
             </button>

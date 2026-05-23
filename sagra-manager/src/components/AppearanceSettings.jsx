@@ -17,14 +17,14 @@ const AppearanceSettings = ({ theme, setTheme, isSoundEnabled, setIsSoundEnabled
     <div className="max-w-4xl mx-auto space-y-8 p-4">
       <div className="flex flex-col gap-2">
         <h2 className="text-4xl font-black tracking-tighter text-gray-900 dark:text-white">IMPOSTAZIONI</h2>
-        <p className="text-gray-500 dark:text-gray-400 font-medium uppercase text-xs tracking-widest">
+        <p className="text-[var(--text-muted)] font-medium uppercase text-xs tracking-widest">
           Personalizza la tua esperienza di cassa
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Card Tema */}
-        <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors duration-200">
+        <div className="bg-[var(--bg-card)] p-8 rounded-3xl shadow-sm border border-[var(--border)]">
           <div className="flex justify-between items-start mb-10">
             <div className={`p-4 rounded-3xl transition-colors ${theme === 'dark' ? 'bg-indigo-500 text-white' : 'bg-yellow-400 text-gray-900'}`}>
               {theme === 'dark' ? <Moon size={32} /> : <Sun size={32} />}
@@ -40,13 +40,13 @@ const AppearanceSettings = ({ theme, setTheme, isSoundEnabled, setIsSoundEnabled
           <h3 className="text-xl font-black mb-2 text-gray-900 dark:text-white">
             MODALITÀ {theme === 'dark' ? 'NOTTE' : 'GIORNO'}
           </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-[var(--text-muted)]">
             Ottimizza la visibilità in base alle luci della sagra.
           </p>
         </div>
 
         {/* Card Audio */}
-        <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors duration-200">
+        <div className="bg-[var(--bg-card)] p-8 rounded-3xl shadow-sm border border-[var(--border)]">
           <div className="flex justify-between items-start mb-10">
             <div className={`p-4 rounded-3xl transition-colors ${isSoundEnabled ? 'bg-green-500 text-white' : 'bg-gray-400 text-white'}`}>
               {isSoundEnabled ? <Volume2 size={32} /> : <VolumeX size={32} />}
@@ -60,7 +60,7 @@ const AppearanceSettings = ({ theme, setTheme, isSoundEnabled, setIsSoundEnabled
             </button>
           </div>
           <h3 className="text-xl font-black mb-2 text-gray-900 dark:text-white">FEEDBACK AUDIO</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-[var(--text-muted)]">
             Riproduce un suono al tocco dei prodotti e all'invio ordine.
           </p>
         </div>

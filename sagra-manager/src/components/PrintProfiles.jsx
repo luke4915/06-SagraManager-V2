@@ -75,16 +75,16 @@ const PrintProfiles = () => {
   };
 
   return (
-    <div className="mt-6 p-6 border rounded-lg bg-white dark:bg-gray-800 shadow-lg">
-      <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-gray-100">
+    <div className="mt-6 p-6 rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] shadow-sm">
+      <h2 className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-6">
         Impostazioni di stampa
       </h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {copyTypes.map(ct => (
-          <div key={ct.name} className="flex flex-col gap-2 p-4 border rounded-lg bg-gray-50 dark:bg-gray-700 shadow-sm">
+          <div key={ct.name} className="flex flex-col gap-3 p-4 rounded-2xl bg-[var(--bg-card-2)] border border-[var(--border)]">
             <div className="flex justify-between items-center">
-              <span className="font-medium">{ct.name}</span>
+              <span className="font-black text-sm uppercase tracking-tight text-[var(--text-main)]">{ct.name}</span>
               {/* Toggle Switch */}
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -99,7 +99,7 @@ const PrintProfiles = () => {
                     )
                   }
                 />
-                <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer dark:bg-gray-600 peer-checked:bg-blue-600 transition"></div>
+                <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:bg-orange-500 transition"></div>
                 <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow transform peer-checked:translate-x-5 transition"></div>
               </label>
             </div>
@@ -115,8 +115,8 @@ const PrintProfiles = () => {
                   e.target.value
                 )
               }
-              className={`px-3 py-2 border rounded dark:bg-gray-700 dark:text-gray-100 ${
-                !copiesAssignments[ct.name]?.enabled ? "bg-gray-200 dark:bg-gray-600 cursor-not-allowed" : ""
+              className={`px-3 py-2 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-orange-500 ${
+                !copiesAssignments[ct.name]?.enabled ? "opacity-40 cursor-not-allowed" : ""
               }`}
             >
               <option value="">Seleziona stampante</option>

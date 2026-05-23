@@ -28,11 +28,11 @@ const ChangePassword = ({ user, showToast, onPasswordChanged }) => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
-      <div className="w-80 p-4 border rounded space-y-4 bg-white">
-        <h2 className="text-lg font-semibold">Imposta la tua password</h2>
-        <input type="password" placeholder="Nuova password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full p-2 border rounded" />
-        <button onClick={handleChange} disabled={loading} className="w-full py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded font-semibold transition-all">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-[var(--bg-main)]">
+      <div className="bg-[var(--bg-card)] p-8 rounded-3xl shadow-xl border border-[var(--border)] w-full max-w-sm space-y-4">
+        <h2 className="text-2xl font-black tracking-tighter text-[var(--text-main)]">Imposta la tua password</h2>
+        <input type="password" placeholder="Nuova password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-orange-500" />
+        <button onClick={handleChange} disabled={loading} className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-black text-sm uppercase tracking-widest shadow-lg shadow-orange-500/20 transition-all">
           {loading ? "Caricamento..." : "Imposta Password"}
         </button>
       </div>
