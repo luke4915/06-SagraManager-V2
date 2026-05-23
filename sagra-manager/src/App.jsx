@@ -21,7 +21,7 @@ import PrintProfiles from './components/PrintProfiles';
 import OrderSettings from './components/OrderSettings';
 
 const API_URL = import.meta.env.VITE_API_URL;
-const WS_URL = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:3001`;
+const WS_URL = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:3000`;
 
 const App = () => {
   const { user, loading, login, logout } = useAuth();
@@ -44,12 +44,33 @@ const App = () => {
   const [sessionName, setSessionName] = useState("");
   const [orderMode, setOrderMode] = useState("simple");
 
-  // Funzione Feedback Sonoro (Server-side assets)
-  const playSagraSound = (soundName) => {
+  const audioCtxRef = useRef(null);
+  const audioBuffers = useRef({});
+
+  const getAudioContext = () => {
+    if (!audioCtxRef.current) audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtxRef.current.state === 'suspended') audioCtxRef.current.resume();
+    return audioCtxRef.current;
+  };
+
+  const playSagraSound = async (soundName) => {
     if (!isSoundEnabled) return;
-    const audio = new Audio(`${API_URL}/assets/${soundName}.mp3`);
-    audio.volume = 0.15;
-    audio.play().catch(() => { });
+    try {
+      const ctx = getAudioContext();
+      if (!audioBuffers.current[soundName]) {
+        const res = await fetch(`${API_URL}/assets/${soundName}.mp3`, { credentials: 'include' });
+        if (!res.ok) throw new Error(`404: ${soundName}`);
+        const arrayBuffer = await res.arrayBuffer();
+        audioBuffers.current[soundName] = await ctx.decodeAudioData(arrayBuffer);
+      }
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffers.current[soundName];
+      const gainNode = ctx.createGain();
+      gainNode.gain.value = 0.15;
+      source.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      source.start(0);
+    } catch (err) { console.warn('Audio error:', err); }
   };
 
   useEffect(() => {
