@@ -5,8 +5,8 @@ const API_URL = import.meta.env.VITE_API_URL;
 
 const StatCard = ({ label, value }) => (
   <div className="bg-white dark:bg-[#1c1f26] rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm">
-    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">{label}</p>
-    <p className="text-2xl font-black tracking-tighter text-gray-900 dark:text-gray-100">{value}</p>
+    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-1.5">{label}</p>
+    <p className="text-2xl font-black tracking-tighter text-gray-900 dark:text-gray-50">{value}</p>
   </div>
 );
 
@@ -119,25 +119,25 @@ const Statistics = () => {
 
   const formatEuro = (v) => Number(v || 0).toFixed(2) + ' €';
   const formatMin = (v) => Number(v || 0).toFixed(1) + ' min';
-  const tooltipStyle = { backgroundColor: 'var(--bg-card)', border: '1px solid #333', borderRadius: 12, color: 'var(--text-main)' };
+  const tooltipStyle = { backgroundColor: '#1c1f26', border: '1px solid #2d3139', borderRadius: 12, color: '#f3f4f6' };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
+    <div className="max-w-5xl mx-auto space-y-6">
       <div>
-        <h2 className="text-4xl font-black tracking-tighter text-gray-900 dark:text-gray-100">STATISTICHE</h2>
-        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-1">Analisi sessioni e vendite</p>
+        <h2 className="text-3xl font-black tracking-tighter text-gray-900 dark:text-gray-50 uppercase">STATISTICHE</h2>
+        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-0.5">Analisi sessioni e vendite delle serate</p>
       </div>
 
-      <div className="bg-white dark:bg-[#1c1f26] rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
-        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-3">Filtra per sessione</label>
+      <div className="bg-white dark:bg-[#1c1f26] rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm">
+        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 block mb-3">Filtra per sessione</label>
         <select
           multiple
           value={selectedSessionIds}
           onChange={(e) => setSelectedSessionIds(Array.from(e.target.selectedOptions, o => o.value))}
-          className="w-full rounded-xl p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 text-sm font-medium"
+          className="w-full rounded-xl p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 text-sm font-medium outline-none focus:border-indigo-500 transition-colors"
         >
           {sessions.map(s => (
-            <option key={s.id} value={String(s.id)}>
+            <option key={s.id} value={String(s.id)} className="p-1.5 rounded-lg my-0.5">
               {s.name || new Date(s.start_time).toLocaleDateString()} {s.end_time ? '— chiusa' : '(in corso)'}
             </option>
           ))}
@@ -152,16 +152,16 @@ const Statistics = () => {
       </div>
 
       {[
-        { title: 'Ordini per fascia oraria', data: stats.ordiniPerFasciaOraria, key: 'count', color: '#f97316', label: 'Ordini', xKey: 'ora' },
+        { title: 'Ordini per fascia oraria', data: stats.ordiniPerFasciaOraria, key: 'count', color: '#4f46e5', label: 'Ordini', xKey: 'ora' },
         { title: 'Prezzo medio per fascia oraria', data: stats.prezzoMedioPerFasciaOraria, key: 'prezzoMedio', color: '#10b981', label: 'Prezzo medio', xKey: 'ora', fmt: formatEuro },
-        { title: 'Top 10 prodotti', data: stats.topProdotti, key: 'count', color: '#f59e0b', label: 'Quantità', xKey: 'prodotto', height: 280 },
+        { title: 'Top 10 prodotti', data: stats.topProdotti, key: 'count', color: '#6366f1', label: 'Quantità', xKey: 'prodotto', height: 280 },
       ].map(({ title, data, key, color, label, xKey = 'ora', fmt, height = 200 }) => (
-        <div key={title} className="bg-white dark:bg-[#1c1f26] rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
-          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">{title}</p>
+        <div key={title} className="bg-white dark:bg-[#1c1f26] rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-4">{title}</p>
           <ResponsiveContainer width="100%" height={height}>
             <BarChart data={data}>
-              <XAxis dataKey={xKey} tick={{ fontSize: 11 }} angle={xKey === 'prodotto' ? -35 : 0} textAnchor={xKey === 'prodotto' ? 'end' : 'middle'} height={xKey === 'prodotto' ? 70 : 30} />
-              <YAxis tick={{ fontSize: 11 }} />
+              <XAxis dataKey={xKey} tick={{ fontSize: 11, fill: '#9ca3af' }} angle={xKey === 'prodotto' ? -35 : 0} textAnchor={xKey === 'prodotto' ? 'end' : 'middle'} height={xKey === 'prodotto' ? 70 : 30} />
+              <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} />
               <Tooltip contentStyle={tooltipStyle} formatter={fmt ? (v) => fmt(v) : undefined} />
               <Bar dataKey={key} fill={color} name={label} radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -169,51 +169,53 @@ const Statistics = () => {
         </div>
       ))}
 
-      <div className="bg-white dark:bg-[#1c1f26] rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
-        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Andamento fatturato cumulativo</p>
+      <div className="bg-white dark:bg-[#1c1f26] rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm">
+        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-4">Andamento fatturato cumulativo</p>
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={stats.andamentoFatturato}>
-            <XAxis dataKey="ora" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} />
+            <XAxis dataKey="ora" tick={{ fontSize: 11, fill: '#9ca3af' }} />
+            <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v) => formatEuro(v)} />
-            <Line type="monotone" dataKey="totale" stroke="#f97316" name="Fatturato" dot={false} strokeWidth={2} />
+            <Line type="monotone" dataKey="totale" stroke="#4f46e5" name="Fatturato" dot={false} strokeWidth={2.5} />
           </LineChart>
         </ResponsiveContainer>
       </div>
 
-      <div className="bg-white dark:bg-[#1c1f26] rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
-        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Tempo medio completamento ordini: <span className="text-orange-500">{formatMin(stats.tempoMedioCompletamento)}</span></p>
+      <div className="bg-white dark:bg-[#1c1f26] rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm">
+        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-4">Tempo medio completamento ordini: <span className="text-indigo-600 dark:text-indigo-400 font-black">{formatMin(stats.tempoMedioCompletamento)}</span></p>
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={stats.tempiCompletamento}>
-            <XAxis dataKey="ora" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} />
+            <XAxis dataKey="ora" tick={{ fontSize: 11, fill: '#9ca3af' }} />
+            <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v) => formatMin(v)} />
             <Bar dataKey="media" fill="#ef4444" name="Tempo medio (min)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
 
-      <div className="bg-white dark:bg-[#1c1f26] rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
-        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Confronto serate</p>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 dark:border-gray-800">
-              {['Data', 'Totale', 'Ordini', 'Medio'].map(h => (
-                <th key={h} className="text-left p-2 text-[10px] font-black uppercase tracking-widest text-gray-400">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {stats.confrontoSerate.map(s => (
-              <tr key={s.id} className="border-b border-gray-50 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
-                <td className="p-2 font-bold text-gray-900 dark:text-gray-100">{s.data}</td>
-                <td className="p-2 font-black text-orange-500">{formatEuro(s.totale)}</td>
-                <td className="p-2 text-gray-600 dark:text-gray-400">{s.numero}</td>
-                <td className="p-2 text-gray-600 dark:text-gray-400">{formatEuro(s.medio)}</td>
+      <div className="bg-white dark:bg-[#1c1f26] rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm">
+        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-4">Confronto serate</p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 dark:border-gray-800">
+                {['Data', 'Totale', 'Ordini', 'Medio'].map(h => (
+                  <th key={h} className="text-left pb-3 pt-1 text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
+              {stats.confrontoSerate.map(s => (
+                <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors group">
+                  <td className="py-3 font-bold text-gray-900 dark:text-gray-100">{s.data}</td>
+                  <td className="py-3 font-black text-indigo-600 dark:text-indigo-400">{formatEuro(s.totale)}</td>
+                  <td className="py-3 text-gray-500 dark:text-gray-400 font-medium">{s.numero}</td>
+                  <td className="py-3 text-gray-500 dark:text-gray-400 font-medium">{formatEuro(s.medio)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
