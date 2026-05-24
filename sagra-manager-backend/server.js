@@ -10,6 +10,7 @@ import productRoutes from './routes/products.js';
 import orderRoutes from './routes/orders.js';
 import sessionRoutes from './routes/sessions.js';
 import authRoutes from './routes/auth.js';
+import exportRoutes from './routes/exports.js';
 import escpos from "escpos";
 import escposUsb from "escpos-usb";
 import cookieParser from "cookie-parser";
@@ -26,7 +27,7 @@ const app = express();
 
 app.use(cookieParser());
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: true,
   credentials: true
 }));
 app.use(express.json());
@@ -56,6 +57,7 @@ app.use('/api/products', productRoutes);
 app.use("/api/printers", printersRoutes);
 app.use('/api/orders', orderRoutes(broadcast));
 app.use('/api/sessions', sessionRoutes(broadcast));
+app.use('/api/exports', exportRoutes);
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 server.listen(PORT, '0.0.0.0', () => {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Download } from 'lucide-react'; // Importiamo l'icona per il download
+import { Download, X } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -23,6 +23,7 @@ const Statistics = () => {
   const [orders, setOrders] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [selectedSessionIds, setSelectedSessionIds] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -118,65 +119,54 @@ const Statistics = () => {
     });
   }, [orders, sessions, selectedSessionIds]);
 
-  // Logica nativa di esportazione CSV dei dati d'ordine relativi a una singola sessione chiusa
-  const handleExportSessionCSV = (session) => {
+  const handleExportSessionCSV = async (session) => {
     if (!session.end_time) return;
+    try {
+      const res = await fetch(`${API_URL}/exports/session/${session.id}/csv`, {
+        method: "GET",
+        credentials: "include"
+      });
+      if (!res.ok) throw new Error();
 
-    // Filtriamo gli ordini completati della sessione specifica
-    const sessionOrders = orders.filter(o => {
-      if (o.status !== "completed") return false;
-      const d = new Date(o.created_at);
-      return d >= new Date(session.start_time) && d <= new Date(session.end_time);
-    });
-
-    // Intestazioni del file CSV (formato standard internazionale compatibile con Excel)
-    const headers = ["ID Ordine", "Data/Ora Creazione", "Prodotto", "Categoria", "Quantita", "Prezzo Unitario", "Prezzo Totale Riga", "Note Prodotto", "Totale Intero Ordine"];
-
-    const rows = [];
-    sessionOrders.forEach(order => {
-      if (order.items && order.items.length > 0) {
-        order.items.forEach(item => {
-          const quantity = Number(item.quantity || 0);
-          const price = Number(item.price || 0);
-          rows.push([
-            order.id,
-            new Date(order.created_at).toLocaleString(),
-            `"${(item.name || '').replace(/"/g, '""')}"`, // Sanitizzazione virgolette
-            `"${(item.category || 'Generico').replace(/"/g, '""')}"`,
-            quantity,
-            price.toFixed(2),
-            (quantity * price).toFixed(2),
-            `"${(item.note || '').replace(/"/g, '""')}"`,
-            Number(order.total || 0).toFixed(2)
-          ]);
-        });
-      }
-    });
-
-    // Creazione della stringa CSV unendo intestazioni e righe
-    const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-
-    // Generazione del file ed esecuzione del download nativo nel browser
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    const sanitizedSessionName = (session.name || `Sessione_${session.id}`).replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    link.setAttribute("download", `export_${sanitizedSessionName}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const csvText = await res.text();
+      const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      const sanitizedSessionName = (session.name || `Sessione_${session.id}`).replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      link.setAttribute("download", `report_${sanitizedSessionName}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      alert("Impossibile recuperare il file CSV dal server.");
+    }
   };
 
   const formatEuro = (v) => Number(v || 0).toFixed(2) + ' €';
   const formatMin = (v) => Number(v || 0).toFixed(1) + ' min';
   const tooltipStyle = { backgroundColor: 'var(--bg-card)', border: '1px solid #333', borderRadius: 12, color: 'var(--text-main)' };
 
+  // Filtriamo solo le sessioni concluse per la visualizzazione all'interno della modale
+  const closedSessions = sessions.filter(s => !!s.end_time);
+
   return (
     <div className="max-w-5xl mx-auto space-y-8">
-      <div>
-        <h2 className="text-4xl font-black tracking-tighter text-[var(--text-main)]">STATISTICHE</h2>
-        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-1">Analisi sessioni e vendite</p>
+      {/* Intestazione principale con pulsante export in alto a destra */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-4xl font-black tracking-tighter text-[var(--text-main)]">STATISTICHE</h2>
+          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-1">Analisi sessioni e vendite</p>
+        </div>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 active:scale-98 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-orange-500/10 cursor-pointer"
+        >
+          <Download size={14} />
+          <span>Esporta CSV</span>
+        </button>
       </div>
 
       <div className="bg-[var(--bg-card)] rounded-2xl p-5 border border-[var(--border)]">
@@ -185,7 +175,7 @@ const Statistics = () => {
           multiple
           value={selectedSessionIds}
           onChange={(e) => setSelectedSessionIds(Array.from(e.target.selectedOptions, o => o.value))}
-          className="w-full rounded-xl p-3 bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm font-medium mb-4"
+          className="w-full rounded-xl p-3 bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm font-medium"
         >
           {sessions.map(s => (
             <option key={s.id} value={String(s.id)}>
@@ -193,32 +183,6 @@ const Statistics = () => {
             </option>
           ))}
         </select>
-
-        {/* Nuova sezione nativa: Esporta dati delle sessioni chiuse */}
-        <div className="pt-4 border-t border-dashed border-[var(--border)]">
-          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Scarica dati grezzi CSV (Solo sessioni chiuse)</p>
-          <div className="flex flex-wrap gap-2">
-            {sessions.map(s => {
-              const isClosed = !!s.end_time;
-              return (
-                <button
-                  key={s.id}
-                  disabled={!isClosed}
-                  onClick={() => handleExportSessionCSV(s)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border
-                    ${isClosed
-                      ? 'bg-[var(--bg-card-2)] border-[var(--border)] text-[var(--text-main)] hover:border-orange-500 hover:text-orange-500 cursor-pointer'
-                      : 'bg-gray-500/5 border-gray-500/10 text-gray-500 opacity-40 cursor-not-allowed'}`}
-                  title={isClosed ? `Scarica CSV per ${s.name || 'questa sessione'}` : "La sessione deve essere chiusa per esportare i dati"}
-                >
-                  <Download size={14} />
-                  <span>{s.name || new Date(s.start_time).toLocaleDateString()}</span>
-                </button>
-              );
-            })}
-            {sessions.length === 0 && <p className="text-xs text-gray-500 italic">Nessuna sessione presente nel sistema.</p>}
-          </div>
-        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -292,6 +256,64 @@ const Statistics = () => {
           </tbody>
         </table>
       </div>
+
+      {/* POPUP / MODAL DI ESPORTAZIONE SESSIONI */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+
+            {/* Header Modal */}
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
+              <div>
+                <h3 className="text-base font-black text-[var(--text-main)] tracking-tight">ESPORTA REPORT CSV</h3>
+                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Seleziona una sessione conclusa</p>
+              </div>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="p-1.5 text-gray-400 hover:text-[var(--text-main)] rounded-lg hover:bg-[var(--bg-input)] transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Lista Sessioni Chiuse */}
+            <div className="p-4 max-h-[320px] overflow-y-auto space-y-2">
+              {closedSessions.map(s => (
+                <div
+                  key={s.id}
+                  className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] hover:border-orange-500/50 transition-all"
+                >
+                  <div className="truncate pr-2">
+                    <p className="text-sm font-bold text-[var(--text-main)] truncate">
+                      {s.name || `Sessione del ${new Date(s.start_time).toLocaleDateString()}`}
+                    </p>
+                    <p className="text-[10px] font-medium text-gray-400">
+                      Chiusa il {new Date(s.end_time).toLocaleDateString()} alle {new Date(s.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      handleExportSessionCSV(s);
+                      setIsModalOpen(false);
+                    }}
+                    className="flex items-center justify-center p-2 bg-orange-500/10 hover:bg-orange-500 text-orange-500 hover:text-white rounded-lg transition-all cursor-pointer"
+                    title="Scarica CSV"
+                  >
+                    <Download size={14} />
+                  </button>
+                </div>
+              ))}
+
+              {closedSessions.length === 0 && (
+                <div className="text-center py-6">
+                  <p className="text-xs text-gray-400 italic">Nessuna sessione chiusa disponibile per l'esportazione.</p>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 };
