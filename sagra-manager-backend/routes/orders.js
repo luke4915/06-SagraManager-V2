@@ -38,9 +38,25 @@ async function printOrder(userId, orderData, sessionName) {
 export default function (broadcast) {
 
     // GET /api/orders
+    // ?session=active  → solo ordini della sessione attiva
     router.get("/", async (req, res) => {
         try {
-            const { rows = [] } = await pool.query("SELECT * FROM orders ORDER BY created_at DESC");
+            let query, params = [];
+            if (req.query.session === 'active') {
+                const { rows: sessions } = await pool.query(
+                    "SELECT start_time, end_time FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1"
+                );
+                if (sessions.length) {
+                    const { start_time, end_time } = sessions[0];
+                    query = `SELECT * FROM orders WHERE created_at >= $1 ${end_time ? 'AND created_at <= $2' : ''} ORDER BY created_at DESC`;
+                    params = end_time ? [start_time, end_time] : [start_time];
+                } else {
+                    return res.json([]);
+                }
+            } else {
+                query = "SELECT * FROM orders ORDER BY created_at DESC";
+            }
+            const { rows = [] } = await pool.query(query, params);
             res.json(rows.map(o => ({
                 ...o,
                 items: safeParseJSON(o.items).map(i => ({ ...i, note: i.note || "" })),

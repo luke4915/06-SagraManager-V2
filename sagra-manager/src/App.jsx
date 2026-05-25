@@ -168,7 +168,7 @@ const App = () => {
     if (cart.length === 0) return showToast("Carrello vuoto!", "error");
     try {
       const orderPayload = {
-        items: cart.map(item => ({ id: item.id, name: item.name, quantity: item.quantity, price: item.price, note: item.note || "" })),
+        items: cart.map(item => ({ id: item.id, name: item.name, quantity: item.quantity, price: item.price, note: item.note || "", print_destination: item.print_destination || 'both' })),
         total,
         status: orderMode === "simple" ? "completed" : "pending",
         created_at: new Date().toISOString(),

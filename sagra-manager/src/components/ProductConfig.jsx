@@ -15,8 +15,8 @@ const ProductConfig = ({ products, setProducts }) => {
   const [isBulkMode, setIsBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
 
-  const openAddForm = () => { setEditingProduct(null); setFormData({ name: '', price: 0, category: '', color: '#3b82f6', visible: true }); setShowForm(true); };
-  const openEditForm = (p) => { setEditingProduct(p); setFormData({ name: p.name || '', price: p.price ?? 0, category: p.category || '', color: p.color || '#3b82f6', visible: p.visible ?? true }); setShowForm(true); };
+  const openAddForm = () => { setEditingProduct(null); setFormData({ name: '', price: 0, category: '', color: '#3b82f6', visible: true, print_destination: 'both' }); setShowForm(true); };
+  const openEditForm = (p) => { setEditingProduct(p); setFormData({ name: p.name || '', price: p.price ?? 0, category: p.category || '', color: p.color || '#3b82f6', visible: p.visible ?? true, print_destination: p.print_destination || 'both' }); setShowForm(true); };
 
   useEffect(() => {
     if (showForm) { const t = setTimeout(() => setPopupVisible(true), 20); return () => clearTimeout(t); }
@@ -186,9 +186,11 @@ const ProductConfig = ({ products, setProducts }) => {
                       </div>
                     )}
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-black text-sm uppercase tracking-tight text-[var(--text-main)]">{product.name}</p>
                         {product.visible === false && <span className="bg-red-500/20 text-red-400 font-bold px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wider border border-red-500/20">Nascosto</span>}
+                        {product.print_destination === 'bar' && <span className="bg-blue-500/10 text-blue-400 font-bold px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wider border border-blue-500/20">Bar</span>}
+                        {product.print_destination === 'kitchen' && <span className="bg-green-500/10 text-green-400 font-bold px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wider border border-green-500/20">Cucina</span>}
                       </div>
                       <p className="text-xs font-bold" style={{ color: product.color || '#3b82f6' }}>{(product.price || 0).toFixed(2)} €</p>
                     </div>
@@ -235,6 +237,31 @@ const ProductConfig = ({ products, setProducts }) => {
               <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">
                 <span className="text-sm font-bold text-[var(--text-muted)]">Colore categoria</span>
                 <input type="color" name="color" value={formData.color} onChange={handleInputChange} className="w-10 h-10 rounded-lg cursor-pointer border-0 bg-transparent" />
+              </div>
+
+              <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">
+                <span className="text-xs font-black uppercase tracking-widest text-[var(--text-muted)] block mb-2">Destinazione stampa</span>
+                <div className="flex gap-2">
+                  {[
+                    { value: 'both',    label: 'Tutti',       desc: 'Bar + Cucina' },
+                    { value: 'bar',     label: 'Solo Bar',    desc: 'Ritiro Bar' },
+                    { value: 'kitchen', label: 'Solo Cucina', desc: 'Gastronomia' },
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, print_destination: opt.value }))}
+                      className={`flex-1 py-2 rounded-xl border text-xs font-black transition-all ${
+                        formData.print_destination === opt.value
+                          ? 'bg-orange-500 border-orange-500 text-white'
+                          : 'bg-[var(--bg-card)] border-[var(--border)] text-[var(--text-muted)] hover:border-orange-400'
+                      }`}
+                    >
+                      <div>{opt.label}</div>
+                      <div className="text-[9px] font-medium opacity-70 mt-0.5">{opt.desc}</div>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">

@@ -19,7 +19,7 @@ const OrdersKitchen = () => {
 
   const loadOrders = async () => {
     try {
-      const res = await fetch(`${API_URL}/orders`);
+      const res = await fetch(`${API_URL}/orders?session=active`);
       setOrders(await res.json());
     } catch { showToast("Errore nel caricamento degli ordini", "error"); }
   };
@@ -45,7 +45,6 @@ const OrdersKitchen = () => {
       };
     };
 
-    // Piccolo delay per evitare race condition al mount
     reconnectTimer = setTimeout(connectWS, 100);
 
     return () => {
@@ -98,8 +97,9 @@ const OrdersKitchen = () => {
     if (videoRef.current) videoRef.current.srcObject = null;
   };
 
-  const pending = orders.filter(o => o.status !== 'completed');
+  const pending = orders.filter(o => o.status === 'pending' || o.status === 'confirmed');
   const completed = orders.filter(o => o.status === 'completed');
+  const canceled = orders.filter(o => o.status === 'canceled');
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -107,7 +107,7 @@ const OrdersKitchen = () => {
         <div>
           <h2 className="text-4xl font-black tracking-tighter text-[var(--text-main)]">CUCINA</h2>
           <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-1">
-            {pending.length} in attesa · {completed.length} completati
+            {pending.length} in attesa · {completed.length} completati · {canceled.length} stornati
           </p>
         </div>
         <button
@@ -130,26 +130,34 @@ const OrdersKitchen = () => {
 
       {orders.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-          <p className="font-black uppercase tracking-widest text-xs">Nessun ordine in attesa</p>
+          <p className="font-black uppercase tracking-widest text-xs">Nessun ordine</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {orders.map(order => (
             <div
               key={order.id}
-              className={`rounded-2xl p-5 border-l-4 transition-all ${order.status === 'completed'
-                ? 'bg-[var(--bg-card)] border-[var(--border)] opacity-50'
-                : 'bg-[var(--bg-card)] border-orange-500 shadow-sm hover:shadow-lg'
+              className={`rounded-2xl p-5 border-l-4 transition-all ${order.status === 'completed' ? 'bg-[var(--bg-card)] border-green-500/40 opacity-50' :
+                order.status === 'canceled' ? 'bg-[var(--bg-card)] border-red-500/40 opacity-40' :
+                  'bg-[var(--bg-card)] border-orange-500 shadow-sm hover:shadow-lg'
                 }`}
             >
               <div className="flex justify-between items-center mb-3">
-                <span className={`font-black text-sm tracking-widest uppercase ${order.status === 'completed' ? 'line-through text-gray-400' : 'text-[var(--text-main)]'}`}>
-                  #{order.id}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`font-black text-sm tracking-widest uppercase ${order.status === 'completed' || order.status === 'canceled' ? 'line-through text-gray-400' : 'text-[var(--text-main)]'
+                    }`}>#{order.id}</span>
+                  {order.status === 'canceled' && (
+                    <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/30 text-red-500 rounded-full text-[9px] font-black uppercase tracking-widest">Stornato</span>
+                  )}
+                  {order.status === 'completed' && (
+                    <span className="px-2 py-0.5 bg-green-500/10 border border-green-500/30 text-green-500 rounded-full text-[9px] font-black uppercase tracking-widest">Completato</span>
+                  )}
+                </div>
                 <span className="text-[10px] font-bold text-gray-400 tabular-nums">
                   {order.created_at ? new Date(order.created_at).toLocaleTimeString() : ''}
                 </span>
               </div>
+
               <ul className="space-y-1.5 mb-4">
                 {order.items?.map((item, idx) => (
                   <li key={idx}>
@@ -165,7 +173,8 @@ const OrdersKitchen = () => {
                   </li>
                 ))}
               </ul>
-              {order.status !== 'completed' && (
+
+              {order.status !== 'completed' && order.status !== 'canceled' && (
                 <button
                   onClick={() => markAsCompleted(order.id)}
                   className="w-full flex items-center justify-center gap-2 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-orange-500/20"

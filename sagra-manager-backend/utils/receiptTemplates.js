@@ -1,33 +1,44 @@
 import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import escpos from "escpos";
 import escposNetwork from "escpos-network";
 import bwipjs from "bwip-js";
 
-// ===== Helper: stampa logo =====
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const TMP_DIR = path.join(__dirname, '..', 'tmp');
+
+const LINE_WIDTH = 42;
+const DIVIDER = '='.repeat(LINE_WIDTH);
+const DIVIDER_THIN = '-'.repeat(LINE_WIDTH);
+
+// ===== Logo =====
 function printLogo(printer, logoPath) {
   return new Promise((resolve) => {
-    if (logoPath && fs.existsSync(logoPath)) {
-      escpos.Image.load(logoPath, (image) => {
-        try {
-          if (!(image instanceof escpos.Image)) throw new Error("File non convertito correttamente");
-          printer.align("CT").image(image, "s8").newLine();
-        } catch (err) {
-          console.error("Errore logo ESC/POS:", err.message);
-        }
-        resolve();
-      });
-    } else resolve();
+    if (!logoPath || !fs.existsSync(logoPath)) return resolve();
+    escpos.Image.load(logoPath, (image) => {
+      try {
+        if (!(image instanceof escpos.Image)) throw new Error("Logo non valido");
+        printer.align("CT").image(image, "s8");
+        printer.feed(1);
+      } catch (err) {
+        console.error("Errore logo:", err.message);
+      }
+      resolve();
+    });
   });
 }
 
-// ===== Helper: barcode come immagine =====
+// ===== Barcode =====
 async function printBarcodeImage(printer, code) {
+  fs.mkdirSync(TMP_DIR, { recursive: true });
+  const tmpPath = path.join(TMP_DIR, `barcode_${code}.png`);
   try {
     const pngBuffer = await bwipjs.toBuffer({
       bcid: 'code128', text: code, scale: 3, height: 10,
-      includetext: true, textxalign: 'center', textyoffset: 5
+      includetext: true, textxalign: 'center', textyoffset: 4
     });
-    const tmpPath = `./tmp/barcode_${code}.png`;
     fs.writeFileSync(tmpPath, pngBuffer);
     await new Promise((resolve) => {
       escpos.Image.load(tmpPath, (image) => {
@@ -35,69 +46,36 @@ async function printBarcodeImage(printer, code) {
         resolve();
       });
     });
-    fs.unlinkSync(tmpPath);
   } catch (err) {
-    console.error("Errore barcode:", err);
+    console.error("Errore barcode:", err.message);
     printer.align('CT').text(code);
+  } finally {
+    try { fs.unlinkSync(tmpPath); } catch (_) { }
   }
 }
 
-// ===== Header =====
-async function renderHeader(printer, eventName, title) {
-  printer.encode('UTF-8');
-  printer.align("CT").style("B").text(eventName.toUpperCase()).style("NORMAL");
-  if (title) printer.align("CT").text(title);
-  printer.text("----------------------------------------");
-}
-
-// ===== Footer =====
-async function renderFooter(printer, logoPath = null, orderBarcode = null, timestamp = null, total = null) {
-  printer.text("----------------------------------------");
-  if (total !== null)
-    printer.align("RT").style("B").text(`Totale: € ${total.toFixed(2)}`).style("NORMAL");
-  if (orderBarcode) {
-    printer.newLine().align("CT").text("CODICE ORDINE:");
-    await printBarcodeImage(printer, orderBarcode);
-    printer.newLine();
-  }
-  if (timestamp) printer.align("CT").text(`Emesso: ${timestamp}`);
-  printer.align("CT").style("B").text("Grazie per il tuo acquisto!").style("NORMAL");
-  printer.align("CT").text("Powered by:");
-  if (logoPath) await printLogo(printer, logoPath);
-  printer.cut();
-}
-
-// ===== Wrapping testo =====
+// ===== Helpers =====
 function wrapText(text, width) {
+  const words = text.split(" ");
   const lines = [];
   let current = "";
-  text.split(" ").forEach(word => {
-    if ((current + word).length > width) { lines.push(current.trim()); current = word + " "; }
-    else current += word + " ";
+  words.forEach(word => {
+    if ((current + word).length > width) {
+      if (current) lines.push(current.trimEnd());
+      current = word + " ";
+    } else {
+      current += word + " ";
+    }
   });
-  if (current) lines.push(current.trim());
-  return lines;
+  if (current.trim()) lines.push(current.trimEnd());
+  return lines.length ? lines : [text.slice(0, width)];
 }
 
-function renderItems(printer, items, showPrices = false) {
-  printer.text("Articolo               Q.ta  Prezzo  Totale");
-  printer.text("----------------------------------------");
-  items.forEach(item => {
-    const qty = item.quantity.toString().padStart(3, " ");
-    const priceStr = showPrices ? item.price.toFixed(2).padStart(6, " ") : "";
-    const totalStr = showPrices ? (item.price * item.quantity).toFixed(2).padStart(6, " ") : "";
-    const lines = wrapText(item.name.toUpperCase(), 20);
-    lines.forEach((line, index) => {
-      let lineText = line.padEnd(20, " ");
-      if (index === 0) { lineText += `  ${qty}`; if (showPrices) lineText += `  ${priceStr}  ${totalStr}`; }
-      printer.align("LT").text(lineText);
-    });
-    if (item.note) printer.align("LT").text(`   ↳ Nota: ${item.note}`);
-  });
-  printer.text("----------------------------------------");
+function rowLR(left, right, width = LINE_WIDTH) {
+  const gap = Math.max(1, width - left.length - right.length);
+  return left + ' '.repeat(gap) + right;
 }
 
-// ===== Codifica ordine per barcode =====
 function encodeOrderId(orderId, timestamp = null) {
   let code = orderId.toString(36).toUpperCase().padStart(6, '0');
   if (timestamp) {
@@ -107,60 +85,147 @@ function encodeOrderId(orderId, timestamp = null) {
   return `ORD${code}`;
 }
 
+function filterItems(items, destination) {
+  if (destination === 'all') return items;
+  return items.filter(item => {
+    const d = item.print_destination || 'both';
+    return d === 'both' || d === destination;
+  });
+}
+
+// ===== Header =====
+async function renderHeader(printer, { eventName, title, orderId, timestamp, logoPath }) {
+  printer.encode('UTF-8');
+  if (logoPath) await printLogo(printer, logoPath);
+
+  printer.align("CT").style("B").size(1, 1).text(eventName.toUpperCase());
+  printer.size(0, 0).style("NORMAL");
+  printer.feed(1);
+
+  printer.align("CT").text(DIVIDER);
+  printer.align("CT").style("B").text(title).style("NORMAL");
+  printer.align("CT").text(DIVIDER);
+  printer.feed(1);
+
+  const ts = new Date(timestamp);
+  printer.align("LT").text(rowLR(`Ordine: #${orderId}`, ts.toLocaleTimeString('it-IT')));
+  printer.align("LT").text(`Data: ${ts.toLocaleDateString('it-IT', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}`);
+  printer.text(DIVIDER_THIN);
+}
+
+// ===== Items =====
+function renderItems(printer, items, showPrices = false) {
+  if (showPrices) {
+    printer.align("LT").text('ARTICOLO             QT   PREZZO    TOT');
+    printer.text(DIVIDER_THIN);
+    items.forEach(item => {
+      const qty = String(item.quantity).padStart(2);
+      const price = parseFloat(item.price).toFixed(2).padStart(7);
+      const tot = (parseFloat(item.price) * item.quantity).toFixed(2).padStart(6);
+      const lines = wrapText(item.name.toUpperCase(), 20);
+      lines.forEach((line, i) => {
+        if (i === 0) printer.align("LT").text(line.padEnd(20) + `  ${qty}${price} ${tot}`);
+        else printer.align("LT").text('  ' + line);
+      });
+      if (item.note) printer.align("LT").text(`  >> ${item.note}`);
+    });
+  } else {
+    printer.align("LT").text('ARTICOLO                          QT');
+    printer.text(DIVIDER_THIN);
+    items.forEach(item => {
+      const qty = String(item.quantity).padStart(2);
+      const lines = wrapText(item.name.toUpperCase(), 32);
+      lines.forEach((line, i) => {
+        if (i === 0) printer.align("LT").style("B").text(line.padEnd(33) + `  ${qty}`).style("NORMAL");
+        else printer.align("LT").text('  ' + line);
+      });
+      if (item.note) printer.align("LT").text(`  >> ${item.note}`);
+    });
+  }
+  printer.text(DIVIDER_THIN);
+}
+
+// ===== Footer =====
+async function renderFooter(printer, { total, barcode, showTotal = false }) {
+  if (showTotal && total !== null && total !== undefined) {
+    printer.feed(1);
+    printer.align("RT").style("B").size(1, 1).text(`TOTALE: EUR ${parseFloat(total).toFixed(2)}`);
+    printer.size(0, 0).style("NORMAL");
+    printer.feed(1);
+  }
+
+  printer.text(DIVIDER);
+
+  if (barcode) {
+    printer.feed(1);
+    printer.align("CT").text("Mostra questo codice al ritiro:");
+    printer.feed(1);
+    await printBarcodeImage(printer, barcode);
+    printer.feed(1);
+  }
+
+  printer.align("CT").text(DIVIDER);
+  printer.align("CT").style("B").text("Grazie per il tuo acquisto!").style("NORMAL");
+  printer.align("CT").text("Sagra Manager - by Luke");
+  printer.feed(4);
+  printer.cut();
+}
+
 // ===== Templates =====
 export async function renderCustomerEscpos(printer, orderData, eventName, logoPath) {
-  await renderHeader(printer, eventName, "Copia Cliente");
-  printer.align("LT").text(`Ordine #${orderData.id}`).text("");
-  renderItems(printer, orderData.items, true);
   const ts = new Date(orderData.created_at);
-  await renderFooter(printer, logoPath, encodeOrderId(orderData.id, ts), ts.toLocaleString(), orderData.total);
+  await renderHeader(printer, { eventName, title: '*** SCONTRINO CLIENTE ***', orderId: orderData.id, timestamp: ts, logoPath });
+  renderItems(printer, orderData.items, true);
+  await renderFooter(printer, { total: orderData.total, barcode: encodeOrderId(orderData.id, ts), showTotal: true });
 }
 
 export async function renderKitchenEscpos(printer, orderData, eventName, logoPath) {
-  await renderHeader(printer, eventName, "Copia Cucina");
-  printer.align("LT").text(`Ordine #${orderData.id}`).text("");
-  renderItems(printer, orderData.items, false);
-  const ts = orderData.created_at ? new Date(orderData.created_at) : new Date();
-  await renderFooter(printer, logoPath, encodeOrderId(orderData.id, ts), ts.toLocaleString(), orderData.total);
+  const items = filterItems(orderData.items, 'kitchen');
+  if (!items.length) return;
+  const ts = new Date(orderData.created_at || Date.now());
+  await renderHeader(printer, { eventName, title: '=== COMANDA CUCINA ===', orderId: orderData.id, timestamp: ts, logoPath: null });
+  renderItems(printer, items, false);
+  await renderFooter(printer, { showTotal: false });
 }
 
 export async function renderGastronomyEscpos(printer, orderData, eventName, logoPath) {
-  await renderHeader(printer, eventName, "Copia Gastronomia");
-  printer.align("LT").text(`Ordine #${orderData.id}`).text("");
-  renderItems(printer, orderData.items, false);
-  const ts = orderData.created_at ? new Date(orderData.created_at) : new Date();
-  await renderFooter(printer, logoPath, encodeOrderId(orderData.id, ts), ts.toLocaleString(), orderData.total);
+  const items = filterItems(orderData.items, 'kitchen');
+  if (!items.length) return;
+  const ts = new Date(orderData.created_at || Date.now());
+  await renderHeader(printer, { eventName, title: '*** RITIRO GASTRONOMIA ***', orderId: orderData.id, timestamp: ts, logoPath: null });
+  renderItems(printer, items, false);
+  await renderFooter(printer, { barcode: encodeOrderId(orderData.id, ts), showTotal: false });
 }
 
-// FIX: aggiunto "Ritiro Bar" mancante
 export async function renderBarEscpos(printer, orderData, eventName, logoPath) {
-  await renderHeader(printer, eventName, "Copia Bar");
-  printer.align("LT").text(`Ordine #${orderData.id}`).text("");
-  renderItems(printer, orderData.items, false);
-  const ts = orderData.created_at ? new Date(orderData.created_at) : new Date();
-  await renderFooter(printer, logoPath, encodeOrderId(orderData.id, ts), ts.toLocaleString(), orderData.total);
+  const items = filterItems(orderData.items, 'bar');
+  if (!items.length) return;
+  const ts = new Date(orderData.created_at || Date.now());
+  await renderHeader(printer, { eventName, title: '*** RITIRO BAR ***', orderId: orderData.id, timestamp: ts, logoPath: null });
+  renderItems(printer, items, false);
+  await renderFooter(printer, { barcode: encodeOrderId(orderData.id, ts), showTotal: false });
 }
 
-// ===== Export map — tutti e 4 i tipi =====
+// ===== Map =====
 export const templatesEscpos = {
   "Cliente": renderCustomerEscpos,
   "Cucina": renderKitchenEscpos,
   "Ritiro Gastronomia": renderGastronomyEscpos,
-  "Ritiro Bar": renderBarEscpos,        // era mancante
+  "Ritiro Bar": renderBarEscpos,
 };
 
-// ===== Helper stampa network =====
+// ===== printESCPosNetwork =====
+// Stampante fisica Epson: printer_name = "192.168.1.x:9100"
+// Emulatore locale:       printer_name = "127.0.0.1:631"
 export async function printESCPosNetwork(settingOrTemplate, orderData, eventName, logoPath, hostDefault = "127.0.0.1", portDefault = 631) {
-  let templateFunc;
-  let host = hostDefault;
-  let port = portDefault;
+  let templateFunc, host = hostDefault, port = portDefault;
 
   if (typeof settingOrTemplate === "function") {
     templateFunc = settingOrTemplate;
   } else if (settingOrTemplate && typeof settingOrTemplate === "object") {
     templateFunc = templatesEscpos[settingOrTemplate.copy_type];
     if (!templateFunc) {
-      console.warn(`Nessun template per copy_type: "${settingOrTemplate.copy_type}"`);
+      console.warn(`Nessun template per: "${settingOrTemplate.copy_type}"`);
       return;
     }
     if (settingOrTemplate.printer_name) {
@@ -172,7 +237,7 @@ export async function printESCPosNetwork(settingOrTemplate, orderData, eventName
     }
   } else return;
 
-  fs.mkdirSync("./tmp", { recursive: true });
+  fs.mkdirSync(TMP_DIR, { recursive: true });
   const device = new escposNetwork(host, port);
   const printer = new escpos.Printer(device);
 
