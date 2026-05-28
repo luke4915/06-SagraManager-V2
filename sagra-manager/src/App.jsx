@@ -30,7 +30,10 @@ const App = () => {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [total, setTotal] = useState(0);
-  const [view, setView] = useState('dashboard');
+
+  // MODIFICA: Se l'utente ha ruolo 'cucina', la vista iniziale predefinita diventa 'kitchen', altrimenti 'dashboard'
+  const [view, setView] = useState(user?.role === 'cucina' ? 'kitchen' : 'dashboard');
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showReversePopup, setShowReversePopup] = useState(false);
   const [needsPasswordChange, setNeedsPasswordChange] = useState(false);
@@ -52,6 +55,13 @@ const App = () => {
 
   const audioCtxRef = useRef(null);
   const audioBuffers = useRef({});
+
+  // MODIFICA: Sincronizza la vista se l'utente cambia o effettua il login in un secondo momento
+  useEffect(() => {
+    if (user?.role === 'cucina') {
+      setView('kitchen');
+    }
+  }, [user]);
 
   const getAudioContext = () => {
     if (!audioCtxRef.current) audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
@@ -129,7 +139,6 @@ const App = () => {
             setProducts(prev => prev.filter(p => p.id !== msg.id));
             showToast(`Prodotto rimosso!`, "warning");
             break;
-          // Integrazione opzionale se il server invia messaggi di sessione broadcast via WS
           case "session_started":
             setSessionActive(true);
             setSessionName(msg.session.name);
@@ -190,30 +199,22 @@ const App = () => {
     } catch (err) { showToast("Errore durante l'invio", "error"); }
   };
 
-  // Intercettore del pulsante sessione proveniente dalla Sidebar
   const handleSessionToggleClick = (targetState) => {
-    // FIX: Se targetState non è un booleano (es. è un evento o undefined), 
-    // decidiamo l'azione basandoci sul contrario dello stato attuale della sessione.
     const shouldActivate = typeof targetState === 'boolean' ? targetState : !sessionActive;
-
     if (shouldActivate) {
-      // L'utente vuole attivare una sessione -> Apri il modale di inserimento nome
       setInputSessionName("");
       setShowStartSessionModal(true);
     } else {
-      // L'utente vuole disattivare una sessione -> Chiedi conferma nel relativo modale
       setShowEndSessionModal(true);
     }
   };
 
-  // Chiamata API Creazione Sessione
   const handleStartSessionSubmit = async (e) => {
     e.preventDefault();
     if (!inputSessionName.trim()) {
       showToast("Inserisci un nome valido!", "warning");
       return;
     }
-
     try {
       const res = await fetch(`${API_URL}/sessions/start`, {
         method: "POST",
@@ -222,7 +223,6 @@ const App = () => {
         body: JSON.stringify({ name: inputSessionName.trim() })
       });
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.error || "Errore db");
 
       setSessionActive(true);
@@ -234,12 +234,10 @@ const App = () => {
     }
   };
 
-  // Chiamata API Chiusura Sessione
   const handleEndSessionConfirm = async () => {
     try {
       const res = await fetch(`${API_URL}/sessions/end`, { method: "POST", credentials: "include" });
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.error || "Errore db");
 
       setSessionActive(false);
@@ -274,7 +272,6 @@ const App = () => {
         sessionName={sessionName} setSessionName={setSessionName}
       />
 
-      {/* Main Content: il margine si adatta alla sidebar in modo fluido */}
       <main className={`flex-1 flex flex-col transition-all duration-500 ease-in-out ${isSidebarOpen ? 'ml-64' : 'ml-20'}`}>
         <Header
           title="Sagra Manager"
@@ -288,20 +285,28 @@ const App = () => {
 
         <div className="flex-1 flex overflow-hidden p-4 gap-4">
           <div className="flex-1 overflow-y-auto no-scrollbar bg-[var(--bg-card)] rounded-5xl p-6">
-            {view === 'dashboard' && <ProductList products={products} addToCart={addToCart} />}
-            {view === 'setup' && (
-              <div className="space-y-6">
-                <AppearanceSettings theme={theme} setTheme={setTheme} isSoundEnabled={isSoundEnabled} setIsSoundEnabled={setIsSoundEnabled} />
-                <OrderSettings orderMode={orderMode} setOrderMode={setOrderMode} />
-                <PrintProfiles />
-              </div>
+            {/* MODIFICA: Se l'utente è cucina, renderizza ESCLUSIVAMENTE il componente OrdersKitchen, ignorando il resto dei controlli della view */}
+            {user.role === 'cucina' ? (
+              <OrdersKitchen />
+            ) : (
+              <>
+                {view === 'dashboard' && <ProductList products={products} addToCart={addToCart} />}
+                {view === 'setup' && (
+                  <div className="space-y-6">
+                    <AppearanceSettings theme={theme} setTheme={setTheme} isSoundEnabled={isSoundEnabled} setIsSoundEnabled={setIsSoundEnabled} />
+                    <OrderSettings orderMode={orderMode} setOrderMode={setOrderMode} />
+                    <PrintProfiles />
+                  </div>
+                )}
+                {view === 'config' && <ProductConfig products={products} setProducts={setProducts} />}
+                {view === 'kitchen' && <OrdersKitchen />}
+                {view === 'statistics' && <Statistics />}
+              </>
             )}
-            {view === 'config' && <ProductConfig products={products} setProducts={setProducts} />}
-            {view === 'kitchen' && <OrdersKitchen />}
-            {view === 'statistics' && <Statistics />}
           </div>
 
           {/* Sezione Carrello laterale (Desktop) */}
+          {/* MODIFICA: Il controllo per escludere l'utente 'cucina' era già presente qui, ma rimane coerente a protezione totale */}
           {view === 'dashboard' && user.role !== 'cucina' && (
             <div className="w-[420px] hidden xl:flex flex-col">
               <Cart
@@ -310,7 +315,6 @@ const App = () => {
                 removeLastItem={removeLastItem} clearCart={clearCart}
                 sendOrder={sendOrder} sessionActive={sessionActive}
               >
-                {/* Il bottone Storno passato come children */}
                 <button
                   onClick={() => setShowReversePopup(true)}
                   className="py-3 bg-purple-600/10 text-purple-600 border border-purple-100 dark:border-purple-900/30 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-purple-600 hover:text-white transition-all"
@@ -361,7 +365,7 @@ const App = () => {
               <button
                 type="button"
                 onClick={() => setShowStartSessionModal(false)}
-                className="flex-1 py-3 bg.transparent border border-[var(--border)] text-[var(--text-main)] rounded-2xl font-bold transition-all hover:bg-gray-500/10"
+                className="flex-1 py-3 bg-transparent border border-[var(--border)] text-[var(--text-main)] rounded-2xl font-bold transition-all hover:bg-gray-500/10"
               >
                 ANNULLA
               </button>

@@ -1,6 +1,104 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Trash2, Plus, Minus, ShoppingCart, Check, Printer, X, MessageSquare } from 'lucide-react';
 
+const API_URL = import.meta.env.VITE_API_URL;
+
+// ─── Modale selezione scontrino da ristampare ──────────────────
+const ReprintSelectionModal = ({ onClose }) => {
+  const [recentOrders, setRecentOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [reprintingId, setReprintingId] = useState(null);
+
+  useEffect(() => {
+    const fetchRecentOrders = async () => {
+      try {
+        const res = await fetch(`${API_URL}/orders?session=active`, { credentials: 'include' });
+        if (!res.ok) throw new Error('Impossibile recuperare gli ordini');
+        const data = await res.json();
+        // Prendiamo solo i primi 10 ordini più recenti per non appesantire la UI
+        setRecentOrders(data.slice(0, 10));
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRecentOrders();
+  }, []);
+
+  const handleReprint = async (orderId) => {
+    setReprintingId(orderId);
+    try {
+      const res = await fetch(`${API_URL}/orders/${orderId}/reprint`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error('Errore durante la ristampa');
+      onClose();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setReprintingId(null);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative w-full max-w-md bg-[var(--bg-card)] rounded-2xl border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-0.5">Ristampa Periferica</p>
+            <h3 className="font-black text-sm uppercase tracking-tight text-[var(--text-main)]">Seleziona scontrino</h3>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors">
+            <X size={15} />
+          </button>
+        </div>
+
+        {/* Lista ordini */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar">
+          {loading && <p className="text-xs text-center py-4 text-[var(--text-muted)]">Caricamento ultimi ordini...</p>}
+          {error && <p className="text-xs text-center py-4 text-red-500">{error}</p>}
+
+          {!loading && !error && recentOrders.length === 0 && (
+            <p className="text-xs text-center py-4 text-[var(--text-muted)]">Nessun ordine trovato nella sessione corrente.</p>
+          )}
+
+          {!loading && !error && recentOrders.map(order => (
+            <div key={order.id} className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-sm">
+              <div className="min-w-0 flex-1 pr-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-xs text-[var(--text-main)]"># {order.id}</span>
+                  <span className="text-[10px] tabular-nums text-[var(--text-muted)]">
+                    {new Date(order.created_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <div className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">
+                  {order.items?.map(i => `${i.quantity}x ${i.name}`).join(', ') || 'Nessun articolo'}
+                </div>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="font-black text-xs text-orange-500 tabular-nums">{Number(order.total).toFixed(2)} €</span>
+                <button
+                  disabled={reprintingId !== null}
+                  onClick={() => handleReprint(order.id)}
+                  className="p-2 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white transition-colors"
+                >
+                  <Printer size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── Modale dettaglio articolo ────────────────────────────────
 const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange }) => {
   const [note, setNote] = useState(item.note || '');
@@ -77,11 +175,12 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange 
 // ─── Cart principale ──────────────────────────────────────────
 const Cart = ({
   cart, setCart, total, addToCart, removeFromCart, removeLastItem,
-  clearCart, sendOrder, sessionActive, reprintLastReceipt, children
+  clearCart, sendOrder, sessionActive, children
 }) => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [amountReceived, setAmountReceived] = useState('');
   const [change, setChange] = useState(0);
+  const [isReprintModalOpen, setIsReprintModalOpen] = useState(false); // Stato per il modale di ristampa
 
   useEffect(() => {
     const received = parseFloat(amountReceived.replace(',', '.')) || 0;
@@ -107,9 +206,15 @@ const Cart = ({
     setCart(prev => prev.map(i => cartKey(i) === oldKey ? { ...i, note } : i));
   };
 
+  // Chiamata a sendOrder + Azzeramento campo contanti ricevuti
+  const handleSendOrder = async () => {
+    if (!sessionActive) return;
+    await sendOrder();
+    setAmountReceived('');
+  };
+
   const mergedCart = mergeCartItems(cart);
 
-  // Mantieni selectedItem sincronizzato se cambia il carrello
   const currentSelected = selectedItem
     ? mergedCart.find(i => i.id === selectedItem.id && (i.note || '') === (selectedItem.note || ''))
     : null;
@@ -126,8 +231,9 @@ const Cart = ({
               {sessionActive ? '● Sessione attiva' : '● Sessione non attiva'}
             </span>
           </div>
-          <button onClick={() => reprintLastReceipt?.()}
-            title="Ristampa ultimo scontrino"
+          {/* Ottimizzazione richiesta 2: Apertura modale di ristampa */}
+          <button onClick={() => setIsReprintModalOpen(true)}
+            title="Ristampa scontrini recenti"
             className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-orange-500 hover:border-orange-500/50 transition-colors">
             <Printer size={16} />
           </button>
@@ -191,7 +297,7 @@ const Cart = ({
             <span className="text-2xl font-black tracking-tighter text-orange-500 tabular-nums">{total.toFixed(2)} €</span>
           </div>
 
-          <button onClick={() => sessionActive && sendOrder()}
+          <button onClick={handleSendOrder}
             disabled={cart.length === 0 || !sessionActive}
             className="w-full h-11 bg-orange-500 hover:bg-orange-600 disabled:bg-[var(--bg-input)] disabled:text-[var(--text-muted)] text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md shadow-orange-500/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2">
             <Check size={15} /> Invia Ordine
@@ -211,7 +317,7 @@ const Cart = ({
         </div>
       </div>
 
-      {/* Modale articolo */}
+      {/* Modale dettaglio articolo */}
       {currentSelected && (
         <CartItemModal
           item={currentSelected}
@@ -220,6 +326,13 @@ const Cart = ({
           onRemove={removeLastItem}
           onDelete={removeFromCart}
           onNoteChange={handleNoteChange}
+        />
+      )}
+
+      {/* Modale selezione ristampa */}
+      {isReprintModalOpen && (
+        <ReprintSelectionModal
+          onClose={() => setIsReprintModalOpen(false)}
         />
       )}
     </>

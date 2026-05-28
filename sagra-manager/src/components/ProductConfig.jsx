@@ -15,8 +15,21 @@ const ProductConfig = ({ products, setProducts }) => {
   const [isBulkMode, setIsBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
 
-  const openAddForm = () => { setEditingProduct(null); setFormData({ name: '', price: 0, category: '', color: '#3b82f6', visible: true, print_destination: 'both' }); setShowForm(true); };
-  const openEditForm = (p) => { setEditingProduct(p); setFormData({ name: p.name || '', price: p.price ?? 0, category: p.category || '', color: p.color || '#3b82f6', visible: p.visible ?? true, print_destination: p.print_destination || 'both' }); setShowForm(true); };
+  // MODIFICA: Aggiunto stato per filtrare solo i prodotti visibili nella dashboard principale
+  const [showOnlyVisible, setShowOnlyVisible] = useState(false);
+
+  // MODIFICA: Modificato il reset del form per la creazione: "visible" è blindato a true di default
+  const openAddForm = () => {
+    setEditingProduct(null);
+    setFormData({ name: '', price: 0, category: '', color: '#3b82f6', visible: true, print_destination: 'both' });
+    setShowForm(true);
+  };
+
+  const openEditForm = (p) => {
+    setEditingProduct(p);
+    setFormData({ name: p.name || '', price: p.price ?? 0, category: p.category || '', color: p.color || '#3b82f6', visible: p.visible ?? true, print_destination: p.print_destination || 'both' });
+    setShowForm(true);
+  };
 
   useEffect(() => {
     if (showForm) { const t = setTimeout(() => setPopupVisible(true), 20); return () => clearTimeout(t); }
@@ -35,7 +48,7 @@ const ProductConfig = ({ products, setProducts }) => {
   const handleToggleSingleVisibility = async (product) => {
     const updatedStatus = !product.visible;
     try {
-      const res = await fetch(`${API_URL}/products/${product.id}`, { credentials: 'include', 
+      const res = await fetch(`${API_URL}/products/${product.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -57,7 +70,7 @@ const ProductConfig = ({ products, setProducts }) => {
   const handleBulkVisibilityChange = async (visibleStatus) => {
     if (selectedIds.length === 0) return;
     try {
-      const res = await fetch(`${API_URL}/products/bulk-visibility`, { credentials: 'include', 
+      const res = await fetch(`${API_URL}/products/bulk-visibility`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -101,7 +114,7 @@ const ProductConfig = ({ products, setProducts }) => {
   const handleDelete = async (id) => {
     if (!window.confirm("Eliminare questo prodotto?")) return;
     try {
-      const res = await fetch(`${API_URL}/products/${id}`, { credentials: 'include',  method: "DELETE", credentials: "include" });
+      const res = await fetch(`${API_URL}/products/${id}`, { method: "DELETE", credentials: "include" });
       if (!res.ok) throw new Error();
 
       setProducts(prev => prev.filter(p => p.id !== id));
@@ -109,9 +122,18 @@ const ProductConfig = ({ products, setProducts }) => {
   };
 
   const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
+
+  // MODIFICA: Aggiornata la logica di filtraggio per includere il controllo "showOnlyVisible"
   const filteredGroups = categories
     .filter(c => filterCategory === 'all' || c === filterCategory)
-    .map(c => ({ category: c, items: products.filter(p => p.category === c && (!searchTerm || p.name.toLowerCase().includes(searchTerm.toLowerCase()))) }))
+    .map(c => ({
+      category: c,
+      items: products.filter(p =>
+        p.category === c &&
+        (!searchTerm || p.name.toLowerCase().includes(searchTerm.toLowerCase())) &&
+        (!showOnlyVisible || p.visible !== false) // Se il toggle è attivo, esclude i prodotti con visible === false
+      )
+    }))
     .filter(g => g.items.length > 0);
 
   return (
@@ -121,13 +143,27 @@ const ProductConfig = ({ products, setProducts }) => {
           <h2 className="text-4xl font-black tracking-tighter text-[var(--text-main)]">MENU</h2>
           <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-1">Gestione prodotti</p>
         </div>
+
+        {/* MODIFICA: Inserito il pulsante/toggle della visibilità accanto allo strumento di selezione multipla */}
         <div className="flex gap-2">
+          <button
+            onClick={() => setShowOnlyVisible(!showOnlyVisible)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all border ${showOnlyVisible
+                ? 'bg-green-600 border-green-600 text-white'
+                : 'bg-[var(--bg-card)] border-[var(--border)] text-[var(--text-main)] hover:border-gray-400'
+              }`}
+          >
+            {showOnlyVisible ? <Eye size={14} /> : <EyeOff size={14} />}
+            {showOnlyVisible ? 'Solo Visibili' : 'Tutti i Prodotti'}
+          </button>
+
           <button
             onClick={() => { setIsBulkMode(!isBulkMode); setSelectedIds([]); }}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${isBulkMode ? 'bg-blue-600 text-white' : 'bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)]'}`}
           >
             {isBulkMode ? 'Annulla Selezione' : 'Selezione Multipla'}
           </button>
+
           <button onClick={openAddForm} className="flex items-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-orange-500/30 transition-all">
             <Plus size={16} /> Aggiungi
           </button>
@@ -243,19 +279,18 @@ const ProductConfig = ({ products, setProducts }) => {
                 <span className="text-xs font-black uppercase tracking-widest text-[var(--text-muted)] block mb-2">Destinazione stampa</span>
                 <div className="flex gap-2">
                   {[
-                    { value: 'both',    label: 'Tutti',       desc: 'Bar + Cucina' },
-                    { value: 'bar',     label: 'Solo Bar',    desc: 'Ritiro Bar' },
+                    { value: 'both', label: 'Tutti', desc: 'Bar + Cucina' },
+                    { value: 'bar', label: 'Solo Bar', desc: 'Ritiro Bar' },
                     { value: 'kitchen', label: 'Solo Cucina', desc: 'Gastronomia' },
                   ].map(opt => (
                     <button
                       key={opt.value}
                       type="button"
                       onClick={() => setFormData(prev => ({ ...prev, print_destination: opt.value }))}
-                      className={`flex-1 py-2 rounded-xl border text-xs font-black transition-all ${
-                        formData.print_destination === opt.value
+                      className={`flex-1 py-2 rounded-xl border text-xs font-black transition-all ${formData.print_destination === opt.value
                           ? 'bg-orange-500 border-orange-500 text-white'
                           : 'bg-[var(--bg-card)] border-[var(--border)] text-[var(--text-muted)] hover:border-orange-400'
-                      }`}
+                        }`}
                     >
                       <div>{opt.label}</div>
                       <div className="text-[9px] font-medium opacity-70 mt-0.5">{opt.desc}</div>
@@ -264,10 +299,13 @@ const ProductConfig = ({ products, setProducts }) => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">
-                <input type="checkbox" id="visible" name="visible" checked={formData.visible} onChange={handleInputChange} className="w-4 h-4 rounded text-orange-500 focus:ring-orange-500 bg-[var(--bg-card)] border-[var(--border)]" />
-                <label htmlFor="visible" className="text-sm font-bold text-[var(--text-main)] cursor-pointer select-none">Prodotto visibile nel listino</label>
-              </div>
+              {/* MODIFICA: La voce di visibilità è renderizzata condizionalmente SOLO in modalità di modifica (editingProduct). In inserimento nuovo prodotto viene rimossa e preservata a "true" di default nello stato iniziale */}
+              {editingProduct && (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">
+                  <input type="checkbox" id="visible" name="visible" checked={formData.visible} onChange={handleInputChange} className="w-4 h-4 rounded text-orange-500 focus:ring-orange-500 bg-[var(--bg-card)] border-[var(--border)]" />
+                  <label htmlFor="visible" className="text-sm font-bold text-[var(--text-main)] cursor-pointer select-none">Prodotto visibile nel listino</label>
+                </div>
+              )}
 
               <button type="submit" className="w-full py-3 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black text-sm uppercase tracking-widest shadow-lg shadow-orange-500/30 transition-all">
                 {editingProduct ? 'Salva modifiche' : 'Aggiungi prodotto'}

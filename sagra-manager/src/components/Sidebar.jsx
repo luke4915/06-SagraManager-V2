@@ -31,23 +31,25 @@ const Sidebar = ({ view, setView, isOpen, toggleSidebar, currentUser, sessionAct
         ))}
       </nav>
 
-      {/* MODIFICA LOGICA: Interruttore di Sessione Interattivo */}
-      <div className="w-full px-3 mb-2">
-        <button
-          onClick={() => setSessionActive(prev => !prev)}
-          className={`w-full flex items-center p-4 rounded-3xl transition-all border ${sessionActive
+      {/* MODIFICA: L'interruttore di sessione viene rimosso completamente se l'utente ha il ruolo 'cucina' */}
+      {currentUser?.role !== 'cucina' && (
+        <div className="w-full px-3 mb-2 animate-in fade-in duration-300">
+          <button
+            onClick={() => setSessionActive(prev => !prev)}
+            className={`w-full flex items-center p-4 rounded-3xl transition-all border ${sessionActive
               ? 'bg-green-50 dark:bg-green-950/10 border-green-500/30 text-green-500'
               : 'bg-red-50 dark:bg-red-950/10 border-red-500/30 text-red-500'
-            }`}
-        >
-          <div className="flex-shrink-0">
-            <Power size={20} />
-          </div>
-          <span className={`ml-4 font-black uppercase text-xs tracking-widest transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
-            {isOpen && (sessionActive ? 'Chiudi Sess.' : 'Apri Sess.')}
-          </span>
-        </button>
-      </div>
+              }`}
+          >
+            <div className="flex-shrink-0">
+              <Power size={20} />
+            </div>
+            <span className={`ml-4 font-black uppercase text-xs tracking-widest transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
+              {isOpen && (sessionActive ? 'Chiudi Sess.' : 'Apri Sess.')}
+            </span>
+          </button>
+        </div>
+      )}
 
       <button onClick={toggleSidebar} className="mt-auto p-4 text-gray-400 hover:text-orange-500 transition-colors">
         {isOpen ? <ChevronLeft size={24} /> : <ChevronRight size={24} />}
