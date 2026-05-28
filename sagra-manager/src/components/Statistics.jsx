@@ -29,8 +29,8 @@ const Statistics = () => {
     const fetchData = async () => {
       try {
         const [resO, resS] = await Promise.all([
-          fetch(`${API_URL}/orders`, { credentials: 'include',  credentials: 'include' }),
-          fetch(`${API_URL}/sessions`, { credentials: 'include',  credentials: 'include' })
+          fetch(`${API_URL}/orders`, { credentials: 'include' }),
+          fetch(`${API_URL}/sessions`, { credentials: 'include' })
         ]);
         const ordersData = await resO.json();
         const sessionsData = await resS.json();
@@ -122,7 +122,7 @@ const Statistics = () => {
   const handleExportSessionCSV = async (session) => {
     if (!session.end_time) return;
     try {
-      const res = await fetch(`${API_URL}/exports/session/${session.id}/csv`, { credentials: 'include', 
+      const res = await fetch(`${API_URL}/exports/session/${session.id}/csv`, {
         method: "GET",
         credentials: "include"
       });
@@ -162,7 +162,7 @@ const Statistics = () => {
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 active:scale-98 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-orange-500/10 cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] active:scale-98 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-[var(--accent-shadow)] cursor-pointer"
         >
           <Download size={14} />
           <span>Esporta CSV</span>
@@ -223,7 +223,7 @@ const Statistics = () => {
       </div>
 
       <div className="bg-[var(--bg-card)] rounded-2xl p-5 border border-[var(--border)]">
-        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Tempo medio completamento ordini: <span className="text-orange-500">{formatMin(stats.tempoMedioCompletamento)}</span></p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Tempo medio completamento ordini: <span className="text-[var(--accent)]">{formatMin(stats.tempoMedioCompletamento)}</span></p>
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={stats.tempiCompletamento}>
             <XAxis dataKey="ora" tick={{ fontSize: 11 }} />
@@ -248,7 +248,7 @@ const Statistics = () => {
             {stats.confrontoSerate.map(s => (
               <tr key={s.id} className="border-b border-[var(--border)] hover:bg-[var(--bg-card-2)] transition-colors">
                 <td className="p-2 font-bold text-[var(--text-main)]">{s.data}</td>
-                <td className="p-2 font-black text-orange-500">{formatEuro(s.totale)}</td>
+                <td className="p-2 font-black text-[var(--accent)]">{formatEuro(s.totale)}</td>
                 <td className="p-2 text-[var(--text-muted)]">{s.numero}</td>
                 <td className="p-2 text-[var(--text-muted)]">{formatEuro(s.medio)}</td>
               </tr>
@@ -281,7 +281,7 @@ const Statistics = () => {
               {closedSessions.map(s => (
                 <div
                   key={s.id}
-                  className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] hover:border-orange-500/50 transition-all"
+                  className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] hover:border-[var(--accent)]/50 transition-all"
                 >
                   <div className="truncate pr-2">
                     <p className="text-sm font-bold text-[var(--text-main)] truncate">
@@ -296,7 +296,7 @@ const Statistics = () => {
                       handleExportSessionCSV(s);
                       setIsModalOpen(false);
                     }}
-                    className="flex items-center justify-center p-2 bg-orange-500/10 hover:bg-orange-500 text-orange-500 hover:text-white rounded-lg transition-all cursor-pointer"
+                    className="flex items-center justify-center p-2 bg-[var(--accent)]/10 hover:bg-[var(--accent)] text-[var(--accent)] hover:text-white rounded-lg transition-all cursor-pointer"
                     title="Scarica CSV"
                   >
                     <Download size={14} />

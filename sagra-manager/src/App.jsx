@@ -284,7 +284,7 @@ const App = () => {
         />
 
         <div className="flex-1 flex overflow-hidden p-4 gap-4">
-          <div className="flex-1 overflow-y-auto no-scrollbar bg-[var(--bg-card)] rounded-5xl p-6">
+          <div className="flex-1 overflow-y-auto no-scrollbar bg-[var(--bg-card)] rounded-xl border border-gray-400 dark:border-[var(--border)] p-6">
             {/* MODIFICA: Se l'utente è cucina, renderizza ESCLUSIVAMENTE il componente OrdersKitchen, ignorando il resto dei controlli della view */}
             {user.role === 'cucina' ? (
               <OrdersKitchen />

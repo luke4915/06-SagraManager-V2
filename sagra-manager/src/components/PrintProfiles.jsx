@@ -101,7 +101,7 @@ const PrintProfiles = () => {
         {isAdmin && (
           <button
             onClick={() => setModal('new')}
-            className="px-3 py-1.5 text-xs rounded-xl bg-orange-500 text-white font-bold hover:bg-orange-600 transition"
+            className="px-3 py-1.5 text-xs rounded-xl bg-[var(--accent)] text-white font-bold hover:bg-[var(--accent-hover)] transition"
           >
             + Tipo copia
           </button>
@@ -135,7 +135,7 @@ const PrintProfiles = () => {
                   {isAdmin && (
                     <>
                       <button onClick={() => setModal({ id: s.copy_type_id, name: s.copy_type_name, label: s.copy_type_label })}
-                        className="text-xs text-orange-400 hover:underline">Rinomina</button>
+                        className="text-xs text-[var(--accent)] hover:underline">Rinomina</button>
                       <button onClick={() => setConfirmDelete(s.copy_type_id)}
                         className="text-xs text-red-400 hover:underline">Elimina</button>
                     </>
@@ -147,7 +147,7 @@ const PrintProfiles = () => {
                       disabled={!isAdmin || saving === s.id}
                       onChange={e => updateSetting(s.id, { enabled: e.target.checked })}
                     />
-                    <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 rounded-full peer peer-checked:bg-orange-500 transition"></div>
+                    <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 rounded-full peer peer-checked:bg-[var(--accent)] transition"></div>
                     <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow transform peer-checked:translate-x-5 transition"></div>
                   </label>
                 </div>
@@ -162,7 +162,7 @@ const PrintProfiles = () => {
                         checked={s.printer_type === type}
                         disabled={!isAdmin || saving === s.id}
                         onChange={() => updateSetting(s.id, { printer_type: type, printer_address: '' })}
-                        className="accent-orange-500"
+                        className="accent-[var(--accent)]"
                       />
                       <span className="text-[var(--text-main)]">{type === 'network' ? 'Rete (IP)' : 'USB'}</span>
                     </label>
@@ -177,14 +177,14 @@ const PrintProfiles = () => {
                     disabled={!isAdmin || saving === s.id}
                     onChange={e => setSettings(prev => prev.map(x => x.id === s.id ? { ...x, printer_address: e.target.value } : x))}
                     onBlur={e => updateSetting(s.id, { printer_address: e.target.value })}
-                    className="px-3 py-2 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-orange-500 disabled:cursor-not-allowed"
+                    className="px-3 py-2 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:cursor-not-allowed"
                   />
                 ) : (
                   <select
                     value={s.printer_address || ''}
                     disabled={!isAdmin || saving === s.id}
                     onChange={e => updateSetting(s.id, { printer_address: e.target.value })}
-                    className="px-3 py-2 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-orange-500 disabled:cursor-not-allowed"
+                    className="px-3 py-2 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:cursor-not-allowed"
                   >
                     <option value="">Seleziona stampante USB</option>
                     {usbPrinters.map(p => (
@@ -240,7 +240,7 @@ const CopyTypeModal = ({ initial, onSave, onClose }) => {
         <div className="flex flex-col gap-3">
           <div>
             <select
-              className="w-full px-3 py-2 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50"
+              className="w-full px-3 py-2 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-50"
               value={name}
               onChange={e => setName(e.target.value)}
               disabled={!!initial}
@@ -251,7 +251,7 @@ const CopyTypeModal = ({ initial, onSave, onClose }) => {
           </div>
           <div>
             <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Etichetta UI <span className="font-normal opacity-60">(es. Copia Cucina)</span></label>
-            <input className="w-full px-3 py-2 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-orange-500"
+            <input className="w-full px-3 py-2 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]"
               value={label} onChange={e => setLabel(e.target.value)} placeholder="Copia Cucina" />
           </div>
         </div>
@@ -259,7 +259,7 @@ const CopyTypeModal = ({ initial, onSave, onClose }) => {
           <button onClick={onClose} className="px-4 py-2 rounded-xl bg-[var(--bg-card-2)] text-[var(--text-main)] text-sm">Annulla</button>
           <button onClick={() => onSave({ name: name.trim(), label: label.trim() })}
             disabled={!name.trim() || !label.trim()}
-            className="px-4 py-2 rounded-xl bg-orange-500 text-white text-sm font-bold disabled:opacity-50">Salva</button>
+            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-white text-sm font-bold disabled:opacity-50">Salva</button>
         </div>
       </div>
     </div>

@@ -164,7 +164,7 @@ const ProductConfig = ({ products, setProducts }) => {
             {isBulkMode ? 'Annulla Selezione' : 'Selezione Multipla'}
           </button>
 
-          <button onClick={openAddForm} className="flex items-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-orange-500/30 transition-all">
+          <button onClick={openAddForm} className="flex items-center gap-2 px-5 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all">
             <Plus size={16} /> Aggiungi
           </button>
         </div>
@@ -268,7 +268,7 @@ const ProductConfig = ({ products, setProducts }) => {
                 { name: 'price', placeholder: 'Prezzo (es. 8.50)', type: 'number', step: '0.01' },
                 { name: 'category', placeholder: 'Categoria (es. Pizze)', type: 'text' },
               ].map(f => (
-                <input key={f.name} {...f} value={formData[f.name]} onChange={handleInputChange} required={f.name !== 'category'} className="w-full p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] font-medium text-sm outline-none focus:ring-2 focus:ring-orange-500" />
+                <input key={f.name} {...f} value={formData[f.name]} onChange={handleInputChange} required={f.name !== 'category'} className="w-full p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] font-medium text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]" />
               ))}
               <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">
                 <span className="text-sm font-bold text-[var(--text-muted)]">Colore categoria</span>
@@ -288,8 +288,8 @@ const ProductConfig = ({ products, setProducts }) => {
                       type="button"
                       onClick={() => setFormData(prev => ({ ...prev, print_destination: opt.value }))}
                       className={`flex-1 py-2 rounded-xl border text-xs font-black transition-all ${formData.print_destination === opt.value
-                          ? 'bg-orange-500 border-orange-500 text-white'
-                          : 'bg-[var(--bg-card)] border-[var(--border)] text-[var(--text-muted)] hover:border-orange-400'
+                          ? 'bg-[var(--accent)] border-[var(--accent)] text-white'
+                          : 'bg-[var(--bg-card)] border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)]'
                         }`}
                     >
                       <div>{opt.label}</div>
@@ -302,12 +302,12 @@ const ProductConfig = ({ products, setProducts }) => {
               {/* MODIFICA: La voce di visibilità è renderizzata condizionalmente SOLO in modalità di modifica (editingProduct). In inserimento nuovo prodotto viene rimossa e preservata a "true" di default nello stato iniziale */}
               {editingProduct && (
                 <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">
-                  <input type="checkbox" id="visible" name="visible" checked={formData.visible} onChange={handleInputChange} className="w-4 h-4 rounded text-orange-500 focus:ring-orange-500 bg-[var(--bg-card)] border-[var(--border)]" />
+                  <input type="checkbox" id="visible" name="visible" checked={formData.visible} onChange={handleInputChange} className="w-4 h-4 rounded text-[var(--accent)] focus:ring-[var(--accent)] bg-[var(--bg-card)] border-[var(--border)]" />
                   <label htmlFor="visible" className="text-sm font-bold text-[var(--text-main)] cursor-pointer select-none">Prodotto visibile nel listino</label>
                 </div>
               )}
 
-              <button type="submit" className="w-full py-3 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black text-sm uppercase tracking-widest shadow-lg shadow-orange-500/30 transition-all">
+              <button type="submit" className="w-full py-3 rounded-2xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-black text-sm uppercase tracking-widest transition-all">
                 {editingProduct ? 'Salva modifiche' : 'Aggiungi prodotto'}
               </button>
             </form>

@@ -11,18 +11,17 @@ const Sidebar = ({ view, setView, isOpen, toggleSidebar, currentUser, sessionAct
   ];
 
   return (
-    <aside className={`fixed left-0 top-0 h-screen bg-[var(--bg-card)] border-r border-[var(--border)] transition-all duration-500 ease-in-out z-50 flex flex-col items-center py-8 ${isOpen ? 'w-64' : 'w-20'}`}>
+    <aside className={`fixed left-0 top-0 h-screen bg-[var(--bg-card)] border-r border-[var(--border)] transition-[width,background-color,border-color] duration-300 ease-in-out z-50 flex flex-col items-center py-8 ${isOpen ? 'w-64' : 'w-20'}`}>
 
-      <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-xl shadow-orange-500/30 mb-12">S</div>
+      <div className="w-12 h-12 bg-[var(--accent)] rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-xl shadow-[var(--accent-shadow)] mb-12 transition-colors duration-300">S</div>
 
       <nav className="flex-1 w-full px-3 space-y-4">
         {menuItems.filter(item => item.roles.includes(currentUser?.role)).map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setView(item.id)}
-            className={`w-full flex items-center p-4 rounded-3xl transition-all relative group
-              ${view === item.id ? 'bg-orange-500 text-white shadow-xl shadow-orange-500/40' : 'text-[var(--text-muted)] hover:bg-[var(--bg-card-2)] hover:text-[var(--text-main)]'}`}
-          >
+          <button key={item.id} onClick={() => setView(item.id)}
+            className={`w-full flex items-center p-4 rounded-3xl transition-all duration-200 relative group
+              ${view === item.id
+                ? 'bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent-shadow)]'
+                : 'text-[var(--text-muted)] hover:bg-[var(--bg-card-2)] hover:text-[var(--text-main)]'}`}>
             <div className="flex-shrink-0">{item.icon}</div>
             <span className={`ml-4 font-black uppercase text-xs tracking-widest transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
               {isOpen && item.label}
@@ -31,19 +30,13 @@ const Sidebar = ({ view, setView, isOpen, toggleSidebar, currentUser, sessionAct
         ))}
       </nav>
 
-      {/* MODIFICA: L'interruttore di sessione viene rimosso completamente se l'utente ha il ruolo 'cucina' */}
       {currentUser?.role !== 'cucina' && (
-        <div className="w-full px-3 mb-2 animate-in fade-in duration-300">
-          <button
-            onClick={() => setSessionActive(prev => !prev)}
-            className={`w-full flex items-center p-4 rounded-3xl transition-all border ${sessionActive
+        <div className="w-full px-3 mb-2">
+          <button onClick={() => setSessionActive(!sessionActive)}
+            className={`w-full flex items-center p-4 rounded-3xl transition-all duration-200 border ${sessionActive
               ? 'bg-green-50 dark:bg-green-950/10 border-green-500/30 text-green-500'
-              : 'bg-red-50 dark:bg-red-950/10 border-red-500/30 text-red-500'
-              }`}
-          >
-            <div className="flex-shrink-0">
-              <Power size={20} />
-            </div>
+              : 'bg-red-50 dark:bg-red-950/10 border-red-500/30 text-red-500'}`}>
+            <div className="flex-shrink-0"><Power size={20} /></div>
             <span className={`ml-4 font-black uppercase text-xs tracking-widest transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
               {isOpen && (sessionActive ? 'Chiudi Sess.' : 'Apri Sess.')}
             </span>
@@ -51,7 +44,7 @@ const Sidebar = ({ view, setView, isOpen, toggleSidebar, currentUser, sessionAct
         </div>
       )}
 
-      <button onClick={toggleSidebar} className="mt-auto p-4 text-gray-400 hover:text-orange-500 transition-colors">
+      <button onClick={toggleSidebar} className="mt-auto p-4 text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors duration-200">
         {isOpen ? <ChevronLeft size={24} /> : <ChevronRight size={24} />}
       </button>
     </aside>

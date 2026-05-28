@@ -77,7 +77,7 @@ const Login = ({ onLogin }) => {
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] focus:ring-2 focus:ring-orange-500 outline-none placeholder:text-[var(--text-muted)]"
+          className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] focus:ring-2 focus:ring-[var(--accent)] outline-none placeholder:text-[var(--text-muted)]"
         />
         <input
           type="password"
@@ -85,12 +85,12 @@ const Login = ({ onLogin }) => {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] focus:ring-2 focus:ring-orange-500 outline-none placeholder:text-[var(--text-muted)]"
+          className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] focus:ring-2 focus:ring-[var(--accent)] outline-none placeholder:text-[var(--text-muted)]"
         />
         <button
           onClick={handleLogin}
           disabled={loading}
-          className={`w-full py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-black text-sm uppercase tracking-widest shadow-lg shadow-orange-500/30 transition-all ${loading ? "opacity-50 cursor-not-allowed" : ""
+          className={`w-full py-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-black text-sm uppercase tracking-widest shadow-lg shadow-[var(--accent)]/30 transition-all ${loading ? "opacity-50 cursor-not-allowed" : ""
             }`}
         >
           {loading ? "Accesso in corso..." : "Login"}

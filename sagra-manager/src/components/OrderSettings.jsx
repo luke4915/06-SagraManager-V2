@@ -7,7 +7,7 @@ const OrderSettings = ({ orderMode, setOrderMode }) => {
 
   return (
     <div className="bg-[var(--bg-card)] p-5 rounded-2xl border border-[var(--border)] flex items-center justify-between mt-4">
-      
+
       <h2 className="text-sm font-black uppercase tracking-widest text-[var(--text-main)]">
         Modalità Ordini
       </h2>
@@ -17,11 +17,10 @@ const OrderSettings = ({ orderMode, setOrderMode }) => {
         {/* --- Etichetta Semplice --- */}
         <div className="flex items-center gap-1">
           <span
-            className={`text-sm ${
-              orderMode === "simple"
+            className={`text-sm ${orderMode === "simple"
                 ? "text-blue-600 dark:text-blue-400 font-semibold"
                 : "text-gray-700 dark:text-gray-300"
-            }`}
+              }`}
           >
             Semplice
           </span>
@@ -45,7 +44,7 @@ const OrderSettings = ({ orderMode, setOrderMode }) => {
         <button
           onClick={toggleMode}
           className={`relative w-12 h-6 flex items-center rounded-full p-1 transition-colors duration-500
-            ${orderMode === "advanced" ? "bg-orange-500" : "bg-[var(--bg-card-2)] border border-[var(--border)]"}`}
+            ${orderMode === "advanced" ? "bg-[var(--accent)]" : "bg-[var(--bg-card-2)] border border-[var(--border)]"}`}
         >
           <div className="absolute w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-500 ease-in-out"></div>
         </button>
@@ -53,11 +52,10 @@ const OrderSettings = ({ orderMode, setOrderMode }) => {
         {/* --- Etichetta Avanzata --- */}
         <div className="flex items-center gap-1">
           <span
-            className={`text-sm ${
-              orderMode === "advanced"
+            className={`text-sm ${orderMode === "advanced"
                 ? "text-blue-600 dark:text-blue-400 font-semibold"
                 : "text-gray-700 dark:text-gray-300"
-            }`}
+              }`}
           >
             Avanzata
           </span>

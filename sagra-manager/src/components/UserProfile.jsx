@@ -18,13 +18,13 @@ const UserProfile = ({ onClose }) => {
   const [newUserRole, setNewUserRole] = useState('cassa');
   const [isCreating, setIsCreating] = useState(false);
 
-  const inputClass = "w-full p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-orange-500";
+  const inputClass = "w-full p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]";
   const labelClass = "block text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-1";
 
   const handleSave = async () => {
     try {
       if (username !== user.username) {
-        const res = await fetch(`${API_URL}/profile/username`, { credentials: 'include', 
+        const res = await fetch(`${API_URL}/profile/username`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -38,7 +38,7 @@ const UserProfile = ({ onClose }) => {
       if (newPassword) {
         if (!oldPassword) return showToast("Inserisci la vecchia password", "error");
         if (newPassword !== confirmPassword) return showToast("Le password non coincidono", "error");
-        const res = await fetch(`${API_URL}/auth/change-password`, { credentials: 'include', 
+        const res = await fetch(`${API_URL}/auth/change-password`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -59,7 +59,7 @@ const UserProfile = ({ onClose }) => {
     if (!newUserName.trim()) return showToast("Inserisci un nome utente", "error");
     setIsCreating(true);
     try {
-      const res = await fetch(`${API_URL}/auth/admin/createUser`, { credentials: 'include', 
+      const res = await fetch(`${API_URL}/auth/admin/createUser`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -125,7 +125,7 @@ const UserProfile = ({ onClose }) => {
 
         {!showCreateUser && (
           <div className="flex gap-3 mt-6">
-            <button onClick={handleSave} className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-orange-500/20 transition-all">Salva</button>
+            <button onClick={handleSave} className="flex-1 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-[var(--accent-shadow)] transition-all">Salva</button>
             <button onClick={onClose} className="flex-1 py-2.5 bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] rounded-xl font-black text-xs uppercase tracking-widest transition-all">Chiudi</button>
           </div>
         )}

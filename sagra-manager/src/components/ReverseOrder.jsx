@@ -12,7 +12,7 @@ const ReverseOrder = ({ onClose }) => {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`${API_URL}/orders?session=active`, { credentials: 'include',  credentials: 'include' });
+        const res = await fetch(`${API_URL}/orders?session=active`, { credentials: 'include' });
         const data = await res.json();
         setOrders(data.filter(o => o.status === 'pending'));
       } catch {
@@ -26,7 +26,7 @@ const ReverseOrder = ({ onClose }) => {
 
   const cancelOrder = async (orderId) => {
     try {
-      const res = await fetch(`${API_URL}/orders/${orderId}`, { credentials: 'include', 
+      const res = await fetch(`${API_URL}/orders/${orderId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -66,7 +66,7 @@ const ReverseOrder = ({ onClose }) => {
                   <div className="text-xs text-[var(--text-muted)] mt-0.5">
                     {order.items?.map(i => `${i.quantity}× ${i.name}`).join(', ')}
                   </div>
-                  <div className="text-xs font-black text-orange-500 mt-0.5">{Number(order.total || 0).toFixed(2)} €</div>
+                  <div className="text-xs font-black text-[var(--accent)] mt-0.5">{Number(order.total || 0).toFixed(2)} €</div>
                 </div>
                 <button
                   onClick={() => cancelOrder(order.id)}

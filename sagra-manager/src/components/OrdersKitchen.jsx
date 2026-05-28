@@ -19,7 +19,7 @@ const OrdersKitchen = () => {
 
   const loadOrders = async () => {
     try {
-      const res = await fetch(`${API_URL}/orders?session=active`, { credentials: 'include',  credentials: 'include' });
+      const res = await fetch(`${API_URL}/orders?session=active`, { credentials: 'include' });
       setOrders(await res.json());
     } catch { showToast("Errore nel caricamento degli ordini", "error"); }
   };
@@ -56,7 +56,7 @@ const OrdersKitchen = () => {
   const markAsCompleted = async (orderId) => {
     if (!orderId) return;
     try {
-      const res = await fetch(`${API_URL}/orders/${orderId}`, { credentials: 'include', 
+      const res = await fetch(`${API_URL}/orders/${orderId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -112,7 +112,7 @@ const OrdersKitchen = () => {
         </div>
         <button
           onClick={scanning ? stopScanner : startScanner}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-widest text-white transition-all shadow-lg ${scanning ? 'bg-red-500 shadow-red-500/30' : 'bg-orange-500 shadow-orange-500/30'}`}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-widest text-white transition-all shadow-lg ${scanning ? 'bg-red-500 shadow-red-500/30' : 'bg-[var(--accent)] shadow-[var(--accent-shadow)]'}`}
         >
           <Camera size={16} /> {scanning ? "Ferma" : "Scansiona"}
         </button>
@@ -120,7 +120,7 @@ const OrdersKitchen = () => {
 
       {scanning && (
         <div className="bg-[var(--bg-card)] rounded-2xl p-5 border border-[var(--border)] flex flex-col items-center gap-3">
-          <div className="relative w-full max-w-xs aspect-video rounded-xl overflow-hidden border-2 border-orange-500">
+          <div className="relative w-full max-w-xs aspect-video rounded-xl overflow-hidden border-2 border-[var(--accent)]">
             <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
             <div className="absolute inset-0 border-2 border-dashed border-white/30 m-4 pointer-events-none rounded-lg" />
           </div>
@@ -139,7 +139,7 @@ const OrdersKitchen = () => {
               key={order.id}
               className={`rounded-2xl p-5 border-l-4 transition-all ${order.status === 'completed' ? 'bg-[var(--bg-card)] border-green-500/40 opacity-50' :
                 order.status === 'canceled' ? 'bg-[var(--bg-card)] border-red-500/40 opacity-40' :
-                  'bg-[var(--bg-card)] border-orange-500 shadow-sm hover:shadow-lg'
+                  'bg-[var(--bg-card)] border-[var(--accent)] shadow-sm hover:shadow-lg'
                 }`}
             >
               <div className="flex justify-between items-center mb-3">
@@ -162,7 +162,7 @@ const OrdersKitchen = () => {
                 {order.items?.map((item, idx) => (
                   <li key={idx}>
                     <div className="flex items-baseline gap-2">
-                      <span className="text-orange-500 font-black text-sm">×{item.quantity}</span>
+                      <span className="text-[var(--accent)] font-black text-sm">×{item.quantity}</span>
                       <span className="font-bold text-sm text-[var(--text-main)] uppercase">{item.name}</span>
                     </div>
                     {item.note && (
@@ -177,7 +177,7 @@ const OrdersKitchen = () => {
               {order.status !== 'completed' && order.status !== 'canceled' && (
                 <button
                   onClick={() => markAsCompleted(order.id)}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-orange-500/20"
+                  className="w-full flex items-center justify-center gap-2 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all"
                 >
                   <Check size={16} /> PRONTO
                 </button>

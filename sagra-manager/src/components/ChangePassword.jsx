@@ -14,7 +14,7 @@ const ChangePassword = ({ onPasswordChanged }) => {
     if (!newPassword.trim()) return showToast("Inserisci la nuova password", "error");
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/change-password`, { credentials: 'include', 
+      const res = await fetch(`${API_URL}/auth/change-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -45,12 +45,12 @@ const ChangePassword = ({ onPasswordChanged }) => {
           value={newPassword}
           onChange={e => setNewPassword(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleChange()}
-          className="w-full p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-orange-500"
+          className="w-full p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]"
         />
         <button
           onClick={handleChange}
           disabled={loading}
-          className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-black text-sm uppercase tracking-widest shadow-lg shadow-orange-500/20 transition-all disabled:opacity-50"
+          className="w-full py-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-black text-sm uppercase tracking-widest shadow-lg shadow-[var(--accent)]/20 transition-all disabled:opacity-50"
         >
           {loading ? "Salvataggio..." : "Imposta Password"}
         </button>

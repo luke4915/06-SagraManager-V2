@@ -1,10 +1,5 @@
 @import "tailwindcss";
 
-@theme {
-  --radius-4xl: 2.5rem;
-  --radius-5xl: 3.5rem;
-}
-
 :root {
   --bg-main: #f1f5f9;
   --bg-card: #ffffff;
@@ -12,7 +7,10 @@
   --bg-input: #f1f5f9;
   --text-main: #0f172a;
   --text-muted: #64748b;
-  --border: #e2e8f0;
+  --border: #cbd5e1;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-shadow: rgba(37, 99, 235, 0.2);
 }
 
 .dark {
@@ -23,6 +21,9 @@
   --text-main: #f9fafb;
   --text-muted: #9ca3af;
   --border: #1f2937;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-shadow: rgba(59, 130, 246, 0.2);
 }
 
 body {
@@ -48,4 +49,23 @@ body {
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* Transizioni smooth cambio tema */
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color;
+  transition-duration: 300ms;
+  transition-timing-function: ease;
+}
+
+/* Escludi transizioni su elementi interattivi per non rallentare i click */
+button,
+a,
+input,
+select,
+textarea {
+  transition-property: background-color, border-color, color, opacity, transform, box-shadow;
+  transition-duration: 150ms;
 }
