@@ -12,7 +12,7 @@ const ReverseOrder = ({ onClose }) => {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`${API_URL}/orders?session=active`);
+        const res = await fetch(`${API_URL}/orders?session=active`, { credentials: 'include',  credentials: 'include' });
         const data = await res.json();
         setOrders(data.filter(o => o.status === 'pending'));
       } catch {
@@ -26,7 +26,7 @@ const ReverseOrder = ({ onClose }) => {
 
   const cancelOrder = async (orderId) => {
     try {
-      const res = await fetch(`${API_URL}/orders/${orderId}`, {
+      const res = await fetch(`${API_URL}/orders/${orderId}`, { credentials: 'include', 
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

@@ -24,7 +24,7 @@ const UserProfile = ({ onClose }) => {
   const handleSave = async () => {
     try {
       if (username !== user.username) {
-        const res = await fetch(`${API_URL}/profile/username`, {
+        const res = await fetch(`${API_URL}/profile/username`, { credentials: 'include', 
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -38,7 +38,7 @@ const UserProfile = ({ onClose }) => {
       if (newPassword) {
         if (!oldPassword) return showToast("Inserisci la vecchia password", "error");
         if (newPassword !== confirmPassword) return showToast("Le password non coincidono", "error");
-        const res = await fetch(`${API_URL}/auth/change-password`, {
+        const res = await fetch(`${API_URL}/auth/change-password`, { credentials: 'include', 
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -59,7 +59,7 @@ const UserProfile = ({ onClose }) => {
     if (!newUserName.trim()) return showToast("Inserisci un nome utente", "error");
     setIsCreating(true);
     try {
-      const res = await fetch(`${API_URL}/auth/admin/createUser`, {
+      const res = await fetch(`${API_URL}/auth/admin/createUser`, { credentials: 'include', 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

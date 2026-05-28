@@ -29,8 +29,8 @@ const Statistics = () => {
     const fetchData = async () => {
       try {
         const [resO, resS] = await Promise.all([
-          fetch(`${API_URL}/orders`),
-          fetch(`${API_URL}/sessions`)
+          fetch(`${API_URL}/orders`, { credentials: 'include',  credentials: 'include' }),
+          fetch(`${API_URL}/sessions`, { credentials: 'include',  credentials: 'include' })
         ]);
         const ordersData = await resO.json();
         const sessionsData = await resS.json();
@@ -122,7 +122,7 @@ const Statistics = () => {
   const handleExportSessionCSV = async (session) => {
     if (!session.end_time) return;
     try {
-      const res = await fetch(`${API_URL}/exports/session/${session.id}/csv`, {
+      const res = await fetch(`${API_URL}/exports/session/${session.id}/csv`, { credentials: 'include', 
         method: "GET",
         credentials: "include"
       });

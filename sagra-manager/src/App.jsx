@@ -89,7 +89,7 @@ const App = () => {
     if (loading || !user) return;
     const checkSession = async () => {
       try {
-        const res = await fetch(`${API_URL}/sessions/latest`);
+        const res = await fetch(`${API_URL}/sessions/latest`, { credentials: 'include' });
         const data = await res.json();
         if (data && !data.end_time) {
           setSessionActive(true);
@@ -103,7 +103,7 @@ const App = () => {
   // 2️⃣ FETCH PRODOTTI
   useEffect(() => {
     if (loading || !user) return;
-    fetch(`${API_URL}/products`)
+    fetch(`${API_URL}/products`, { credentials: 'include' })
       .then(res => res.json())
       .then(data => setProducts(data.map(p => ({ ...p, price: parseFloat(p.price) }))))
       .catch(err => console.error(err));
@@ -151,16 +151,16 @@ const App = () => {
   const addToCart = (product) => {
     playSagraSound('product_select_sound');
     setCart(prev => {
-      const exists = prev.find(i => i.id === product.id && !i.note);
-      if (exists) return prev.map(i => i.id === product.id && !i.note ? { ...i, quantity: i.quantity + 1 } : i);
+      const exists = prev.find(i => i.id === product.id && (i.note || '') === (product.note || ''));
+      if (exists) return prev.map(i => i.id === product.id && (i.note || '') === (product.note || '') ? { ...i, quantity: i.quantity + 1 } : i);
       return [...prev, { ...product, quantity: 1 }];
     });
   };
 
   const clearCart = () => setCart([]);
-  const removeFromCart = (product) => setCart(prev => prev.filter(i => i.id !== product.id));
+  const removeFromCart = (product) => setCart(prev => prev.filter(i => !(i.id === product.id && (i.note || '') === (product.note || ''))));
   const removeLastItem = (product) => setCart(prev =>
-    prev.map(i => i.id === product.id ? { ...i, quantity: i.quantity - 1 } : i).filter(i => i.quantity > 0)
+    prev.map(i => i.id === product.id && (i.note || '') === (product.note || '') ? { ...i, quantity: i.quantity - 1 } : i).filter(i => i.quantity > 0)
   );
 
   const sendOrder = async () => {
@@ -218,6 +218,7 @@ const App = () => {
       const res = await fetch(`${API_URL}/sessions/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ name: inputSessionName.trim() })
       });
       const data = await res.json();
@@ -236,7 +237,7 @@ const App = () => {
   // Chiamata API Chiusura Sessione
   const handleEndSessionConfirm = async () => {
     try {
-      const res = await fetch(`${API_URL}/sessions/end`, { method: "POST" });
+      const res = await fetch(`${API_URL}/sessions/end`, { method: "POST", credentials: "include" });
       const data = await res.json();
 
       if (!res.ok) throw new Error(data.error || "Errore db");

@@ -1,175 +1,155 @@
-import express from "express";
-import fs from "fs";
-import { pool } from "../db.js";
-import { authenticate } from "../middleware/authenticate.js";
-import { printESCPosNetwork } from "../utils/receiptTemplates.js";
+import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { pool } from '../db.js';
+import { authenticate } from '../middleware/authenticate.js';
+import { printESCPosNetwork } from '../utils/receiptTemplates.js';
 
 const router = express.Router();
+const TMP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'tmp');
+fs.mkdirSync(TMP_DIR, { recursive: true }); // una volta sola all'avvio
 
 function safeParseJSON(value, fallback = []) {
-    try { return Array.isArray(value) ? value : JSON.parse(value || "[]"); }
-    catch { return fallback; }
+  try { return Array.isArray(value) ? value : JSON.parse(value || '[]'); }
+  catch { return fallback; }
 }
 
-// Statuses da cui NON si può tornare indietro
 const TERMINAL_STATUSES = ['canceled', 'completed'];
 
-// Helper: esegue tutte le stampe per un ordine
-async function printOrder(userId, orderData, sessionName) {
-    const { rows: settings = [] } = await pool.query(
-        `SELECT copy_type, printer_name FROM user_print_settings WHERE user_id = $1 AND enabled = true`,
-        [userId]
+async function printOrder(orderData, sessionName) {
+  const { rows: settings } = await pool.query(
+    `SELECT ps.printer_type, ps.printer_address, ct.name AS copy_type
+     FROM print_settings ps
+     JOIN copy_types ct ON ct.id = ps.copy_type_id
+     WHERE ps.enabled = true`
+  );
+  if (!settings.length) return;
+
+  // Recupera print_destination di tutti i prodotti in una query sola
+  const productIds = [...new Set(orderData.items.map(i => i.id).filter(Boolean))];
+  const destMap = {};
+  if (productIds.length) {
+    const { rows: products } = await pool.query(
+      'SELECT id, print_destination FROM products WHERE id = ANY($1)',
+      [productIds]
     );
-    const logoPath = "./assets/logo_SagraManager_ESC_POS.png";
-    fs.mkdirSync("./tmp", { recursive: true });
+    products.forEach(p => { destMap[p.id] = p.print_destination || 'both'; });
+  }
 
-    const results = await Promise.allSettled(
-        settings.map(s => printESCPosNetwork(s, orderData, sessionName, logoPath))
-    );
+  const logoPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'logo_SagraManager_ESC_POS.png');
 
-    results.forEach((r, i) => {
-        if (r.status === 'rejected')
-            console.error(`Errore stampa [${settings[i].copy_type}]:`, r.reason);
-    });
-
-    return results;
+  // Stampa sequenziale per evitare conflitti TCP sulla stessa porta
+  for (const s of settings) {
+    try {
+      const enrichedOrder = {
+        ...orderData,
+        items: orderData.items.map(i => ({ ...i, print_destination: destMap[i.id] || 'both' })),
+      };
+      await printESCPosNetwork(s, enrichedOrder, sessionName, logoPath);
+    } catch (err) {
+      console.error(`Errore stampa [${s.copy_type}]:`, err.message);
+    }
+  }
 }
 
 export default function (broadcast) {
 
-    // GET /api/orders
-    // ?session=active  → solo ordini della sessione attiva
-    router.get("/", async (req, res) => {
-        try {
-            let query, params = [];
-            if (req.query.session === 'active') {
-                const { rows: sessions } = await pool.query(
-                    "SELECT start_time, end_time FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1"
-                );
-                if (sessions.length) {
-                    const { start_time, end_time } = sessions[0];
-                    query = `SELECT * FROM orders WHERE created_at >= $1 ${end_time ? 'AND created_at <= $2' : ''} ORDER BY created_at DESC`;
-                    params = end_time ? [start_time, end_time] : [start_time];
-                } else {
-                    return res.json([]);
-                }
-            } else {
-                query = "SELECT * FROM orders ORDER BY created_at DESC";
-            }
-            const { rows = [] } = await pool.query(query, params);
-            res.json(rows.map(o => ({
-                ...o,
-                items: safeParseJSON(o.items).map(i => ({ ...i, note: i.note || "" })),
-            })));
-        } catch (err) {
-            console.error("Errore GET /api/orders:", err);
-            res.status(500).json({ error: "Errore nel recupero degli ordini" });
-        }
-    });
+  router.get('/', authenticate, async (req, res) => {
+    try {
+      let query = 'SELECT * FROM orders ORDER BY created_at DESC';
+      let params = [];
+      if (req.query.session === 'active') {
+        const { rows: sessions } = await pool.query(
+          'SELECT start_time, end_time FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
+        );
+        if (!sessions.length) return res.json([]);
+        const { start_time, end_time } = sessions[0];
+        query = `SELECT * FROM orders WHERE created_at >= $1 ${end_time ? 'AND created_at <= $2' : ''} ORDER BY created_at DESC`;
+        params = end_time ? [start_time, end_time] : [start_time];
+      }
+      const { rows } = await pool.query(query, params);
+      res.json(rows.map(o => ({ ...o, items: safeParseJSON(o.items).map(i => ({ ...i, note: i.note || '' })) })));
+    } catch (err) {
+      console.error('Errore GET /api/orders:', err);
+      res.status(500).json({ error: 'Errore nel recupero degli ordini' });
+    }
+  });
 
-    // POST /api/orders
-    router.post("/", authenticate, async (req, res) => {
-        const client = await pool.connect();
-        try {
-            await client.query("BEGIN");
-            const { items, total, status, created_at, created_by } = req.body;
+  router.post('/', authenticate, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { items, total, status, created_at, created_by } = req.body;
+      const { rows } = await client.query(
+        'INSERT INTO orders (items, total, status, created_at, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING id, created_at',
+        [JSON.stringify(items), total, status, created_at, created_by]
+      );
+      const orderId = rows[0].id;
+      const timestamp = rows[0].created_at;
+      await client.query('COMMIT');
 
-            const result = await client.query(
-                `INSERT INTO orders (items, total, status, created_at, created_by)
-         VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at`,
-                [JSON.stringify(items), total, status, created_at, created_by]
-            );
+      const { rows: sessionRows } = await pool.query(
+        'SELECT name FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
+      );
+      const orderData = { id: orderId, created_at: timestamp, items, total };
 
-            const orderId = result.rows[0]?.id;
-            const timestamp = result.rows[0]?.created_at;
-            await client.query("COMMIT");
+      if (broadcast) broadcast({ type: 'order_created', order: { id: orderId, items, total, status, created_at: timestamp } });
+      res.json({ success: true, orderId });
 
-            const { rows: sessionRows = [] } = await pool.query(
-                `SELECT name FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1`
-            );
-            const sessionName = sessionRows[0]?.name || "Serata";
-            const orderData = { id: orderId, created_at: timestamp, items, total };
+      printOrder(orderData, sessionRows[0]?.name || 'Serata').catch(err =>
+        console.error('Errore printOrder:', err)
+      );
+    } catch (err) {
+      await client.query('ROLLBACK');
+      console.error('Errore POST /api/orders:', err);
+      res.status(500).json({ error: "Errore durante l'invio dell'ordine" });
+    } finally {
+      client.release();
+    }
+  });
 
-            // Stampa asincrona ma loggata — non blocca la risposta
-            printOrder(req.user.id, orderData, sessionName).catch(err =>
-                console.error("Errore printOrder:", err)
-            );
+  router.put('/:id', authenticate, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      const { rows: current } = await pool.query('SELECT status FROM orders WHERE id=$1', [id]);
+      if (!current.length) return res.status(404).json({ error: 'Ordine non trovato' });
+      if (TERMINAL_STATUSES.includes(current[0].status))
+        return res.status(409).json({ error: `Impossibile modificare un ordine in stato "${current[0].status}"` });
 
-            if (broadcast) broadcast({ type: "order_created", order: { id: orderId, items, total, status, created_at: timestamp } });
+      const completedAt = status === 'completed' ? new Date().toISOString() : null;
+      const { rows } = await pool.query(
+        `UPDATE orders SET status=$1 ${completedAt ? ', completed_at=$3' : ''} WHERE id=$2 RETURNING *`,
+        completedAt ? [status, id, completedAt] : [status, id]
+      );
+      const updated = { ...rows[0], items: safeParseJSON(rows[0].items) };
+      if (broadcast) broadcast({ type: 'order_updated', order: updated });
+      res.json(updated);
+    } catch (err) {
+      console.error('Errore PUT /api/orders/:id:', err);
+      res.status(500).json({ error: 'Errore aggiornamento ordine' });
+    }
+  });
 
-            res.json({ success: true, orderId });
-        } catch (err) {
-            await client.query("ROLLBACK");
-            console.error("Errore POST /api/orders:", err);
-            res.status(500).json({ error: "Errore durante l'invio dell'ordine" });
-        } finally {
-            client.release();
-        }
-    });
+  router.post('/:id/reprint', authenticate, async (req, res) => {
+    try {
+      const { rows } = await pool.query('SELECT * FROM orders WHERE id=$1', [req.params.id]);
+      if (!rows.length) return res.status(404).json({ error: 'Ordine non trovato' });
+      const order = rows[0];
+      const { rows: sessionRows } = await pool.query(
+        'SELECT name FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
+      );
+      await printOrder(
+        { id: order.id, created_at: order.created_at, items: safeParseJSON(order.items), total: parseFloat(order.total) },
+        sessionRows[0]?.name || 'Serata'
+      );
+      res.json({ success: true });
+    } catch (err) {
+      console.error('Errore reprint:', err);
+      res.status(500).json({ error: 'Errore durante la ristampa' });
+    }
+  });
 
-    // PUT /api/orders/:id — FIX: blocca transizioni da stati terminali
-    router.put("/:id", authenticate, async (req, res) => {
-        try {
-            const { id } = req.params;
-            const { status } = req.body;
-
-            // Leggi stato attuale
-            const { rows: current } = await pool.query("SELECT status FROM orders WHERE id = $1", [id]);
-            if (!current.length) return res.status(404).json({ error: "Ordine non trovato" });
-
-            const currentStatus = current[0].status;
-
-            // Blocca se l'ordine è già in uno stato terminale
-            if (TERMINAL_STATUSES.includes(currentStatus)) {
-                return res.status(409).json({
-                    error: `Impossibile modificare un ordine in stato "${currentStatus}"`
-                });
-            }
-
-            const completedAt = status === 'completed' ? new Date().toISOString() : null;
-            const { rows } = await pool.query(
-                `UPDATE orders SET status=$1 ${completedAt ? ', completed_at=$3' : ''} WHERE id=$2 RETURNING *`,
-                completedAt ? [status, id, completedAt] : [status, id]
-            );
-
-            const updated = { ...rows[0], items: safeParseJSON(rows[0].items) };
-            if (broadcast) broadcast({ type: "order_updated", order: updated });
-            res.json(updated);
-        } catch (err) {
-            console.error("Errore PUT /api/orders/:id:", err);
-            res.status(500).json({ error: "db error" });
-        }
-    });
-
-    // POST /api/orders/:id/reprint — Ristampa comanda
-    router.post("/:id/reprint", authenticate, async (req, res) => {
-        try {
-            const { id } = req.params;
-            const { rows } = await pool.query("SELECT * FROM orders WHERE id = $1", [id]);
-            if (!rows.length) return res.status(404).json({ error: "Ordine non trovato" });
-
-            const order = rows[0];
-            const items = safeParseJSON(order.items);
-
-            const { rows: sessionRows = [] } = await pool.query(
-                `SELECT name FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1`
-            );
-            const sessionName = sessionRows[0]?.name || "Serata";
-            const orderData = { id: order.id, created_at: order.created_at, items, total: parseFloat(order.total) };
-
-            const results = await printOrder(req.user.id, orderData, sessionName);
-            const failed = results.filter(r => r.status === 'rejected').length;
-
-            res.json({
-                success: true,
-                printed: results.length - failed,
-                failed,
-            });
-        } catch (err) {
-            console.error("Errore reprint:", err);
-            res.status(500).json({ error: "Errore durante la ristampa" });
-        }
-    });
-
-    return router;
+  return router;
 }

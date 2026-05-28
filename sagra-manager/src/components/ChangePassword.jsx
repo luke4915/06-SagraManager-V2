@@ -14,7 +14,7 @@ const ChangePassword = ({ onPasswordChanged }) => {
     if (!newPassword.trim()) return showToast("Inserisci la nuova password", "error");
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/change-password`, {
+      const res = await fetch(`${API_URL}/auth/change-password`, { credentials: 'include', 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

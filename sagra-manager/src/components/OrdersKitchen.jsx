@@ -19,7 +19,7 @@ const OrdersKitchen = () => {
 
   const loadOrders = async () => {
     try {
-      const res = await fetch(`${API_URL}/orders?session=active`);
+      const res = await fetch(`${API_URL}/orders?session=active`, { credentials: 'include',  credentials: 'include' });
       setOrders(await res.json());
     } catch { showToast("Errore nel caricamento degli ordini", "error"); }
   };
@@ -56,7 +56,7 @@ const OrdersKitchen = () => {
   const markAsCompleted = async (orderId) => {
     if (!orderId) return;
     try {
-      const res = await fetch(`${API_URL}/orders/${orderId}`, {
+      const res = await fetch(`${API_URL}/orders/${orderId}`, { credentials: 'include', 
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

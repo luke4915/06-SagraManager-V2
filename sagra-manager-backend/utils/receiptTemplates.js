@@ -217,28 +217,40 @@ export const templatesEscpos = {
 // ===== printESCPosNetwork =====
 // Stampante fisica Epson: printer_name = "192.168.1.x:9100"
 // Emulatore locale:       printer_name = "127.0.0.1:631"
-export async function printESCPosNetwork(settingOrTemplate, orderData, eventName, logoPath, hostDefault = "127.0.0.1", portDefault = 631) {
-  let templateFunc, host = hostDefault, port = portDefault;
+export async function printESCPosNetwork(setting, orderData, eventName, logoPath, hostDefault = "127.0.0.1", portDefault = 631) {
+  let templateFunc, device;
 
-  if (typeof settingOrTemplate === "function") {
-    templateFunc = settingOrTemplate;
-  } else if (settingOrTemplate && typeof settingOrTemplate === "object") {
-    templateFunc = templatesEscpos[settingOrTemplate.copy_type];
+  if (typeof setting === "function") {
+    templateFunc = setting;
+  } else if (setting && typeof setting === "object") {
+    templateFunc = templatesEscpos[setting.copy_type];
     if (!templateFunc) {
-      console.warn(`Nessun template per: "${settingOrTemplate.copy_type}"`);
+      console.warn(`Nessun template per: "${setting.copy_type}"`);
       return;
-    }
-    if (settingOrTemplate.printer_name) {
-      const pn = String(settingOrTemplate.printer_name).trim();
-      const m = pn.match(/^(.+?):(\d{2,5})$/);
-      if (m) { host = m[1]; port = parseInt(m[2], 10); }
-      else if (/^\d+$/.test(pn)) port = parseInt(pn, 10);
-      else if (/^\d{1,3}(\.\d{1,3}){3}$/.test(pn)) host = pn;
     }
   } else return;
 
   fs.mkdirSync(TMP_DIR, { recursive: true });
-  const device = new escposNetwork(host, port);
+
+  // USB
+  if (setting?.printer_type === 'usb') {
+    const usbDevices = escpos.USB.findPrinter();
+    if (!usbDevices.length) throw new Error('Nessuna stampante USB trovata');
+    // Se è specificato un nome, cerca quella; altrimenti prende la prima
+    const usbDevice = usbDevices.find(d => d.deviceDescriptor?.iProduct === setting.printer_address) || usbDevices[0];
+    device = new escpos.USB(usbDevice);
+  } else {
+    // Network: legge printer_address (formato IP:porta) oppure usa default
+    let host = hostDefault, port = portDefault;
+    const addr = setting?.printer_address || '';
+    if (addr) {
+      const m = addr.match(/^(.+?):(\d{2,5})$/);
+      if (m) { host = m[1]; port = parseInt(m[2], 10); }
+      else if (/^\d{1,3}(\.\d{1,3}){3}$/.test(addr)) host = addr;
+    }
+    device = new escposNetwork(host, port);
+  }
+
   const printer = new escpos.Printer(device);
 
   return new Promise((resolve, reject) => {

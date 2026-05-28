@@ -35,7 +35,7 @@ const ProductConfig = ({ products, setProducts }) => {
   const handleToggleSingleVisibility = async (product) => {
     const updatedStatus = !product.visible;
     try {
-      const res = await fetch(`${API_URL}/products/${product.id}`, {
+      const res = await fetch(`${API_URL}/products/${product.id}`, { credentials: 'include', 
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -57,7 +57,7 @@ const ProductConfig = ({ products, setProducts }) => {
   const handleBulkVisibilityChange = async (visibleStatus) => {
     if (selectedIds.length === 0) return;
     try {
-      const res = await fetch(`${API_URL}/products/bulk-visibility`, {
+      const res = await fetch(`${API_URL}/products/bulk-visibility`, { credentials: 'include', 
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -101,7 +101,7 @@ const ProductConfig = ({ products, setProducts }) => {
   const handleDelete = async (id) => {
     if (!window.confirm("Eliminare questo prodotto?")) return;
     try {
-      const res = await fetch(`${API_URL}/products/${id}`, { method: "DELETE", credentials: "include" });
+      const res = await fetch(`${API_URL}/products/${id}`, { credentials: 'include',  method: "DELETE", credentials: "include" });
       if (!res.ok) throw new Error();
 
       setProducts(prev => prev.filter(p => p.id !== id));
