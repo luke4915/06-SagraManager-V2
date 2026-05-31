@@ -2,6 +2,7 @@
 import express from 'express';
 import { pool } from '../db.js';
 import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
+import logger from '../logger.js';
 
 const router = express.Router();
 
@@ -13,7 +14,7 @@ router.get('/copy-types', authenticate, async (req, res) => {
     const { rows } = await pool.query('SELECT * FROM copy_types ORDER BY id');
     res.json(rows);
   } catch (err) {
-    console.error('Errore GET /copy-types:', err);
+    logger.error({ err }, 'Errore GET /copy-types:')
     res.status(500).json({ error: 'Errore server' });
   }
 });
@@ -38,7 +39,7 @@ router.post('/copy-types', authenticate, authorizeAdmin, async (req, res) => {
   } catch (err) {
     if (err.code === '23505')
       return res.status(400).json({ error: 'Nome già esistente' });
-    console.error('Errore POST /copy-types:', err);
+    logger.error({ err }, 'Errore POST /copy-types:')
     res.status(500).json({ error: 'Errore server' });
   }
 });
@@ -60,7 +61,7 @@ router.put('/copy-types/:id', authenticate, authorizeAdmin, async (req, res) => 
   } catch (err) {
     if (err.code === '23505')
       return res.status(400).json({ error: 'Nome già esistente' });
-    console.error('Errore PUT /copy-types/:id:', err);
+    logger.error({ err }, 'Errore PUT /copy-types/id:')
     res.status(500).json({ error: 'Errore server' });
   }
 });
@@ -73,7 +74,7 @@ router.delete('/copy-types/:id', authenticate, authorizeAdmin, async (req, res) 
     if (result.rowCount === 0) return res.status(404).json({ error: 'Tipo copia non trovato' });
     res.json({ message: 'Tipo copia eliminato' });
   } catch (err) {
-    console.error('Errore DELETE /copy-types/:id:', err);
+    logger.error({ err }, 'Errore DELETE /copy-types/id:')
     res.status(500).json({ error: 'Errore server' });
   }
 });
@@ -93,7 +94,7 @@ router.get('/', authenticate, async (req, res) => {
     `);
     res.json(rows);
   } catch (err) {
-    console.error('Errore GET /print-settings:', err);
+    logger.error({ err }, 'Errore GET /print-settings:')
     res.status(500).json({ error: 'Errore server' });
   }
 });
@@ -106,6 +107,12 @@ router.put('/:id', authenticate, authorizeAdmin, async (req, res) => {
   if (!printer_type || !['network', 'usb'].includes(printer_type))
     return res.status(400).json({ error: 'printer_type deve essere "network" o "usb"' });
 
+  if (printer_type === 'network' && printer_address) {
+    const networkPattern = /^(\d{1,3}\.){3}\d{1,3}:\d{2,5}$/;
+    if (!networkPattern.test(printer_address.trim()))
+      return res.status(400).json({ error: 'Indirizzo rete non valido. Formato atteso: 192.168.1.100:9100' });
+  }
+
   try {
     const { rows } = await pool.query(
       `UPDATE print_settings
@@ -116,7 +123,7 @@ router.put('/:id', authenticate, authorizeAdmin, async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ error: 'Impostazione non trovata' });
     res.json(rows[0]);
   } catch (err) {
-    console.error('Errore PUT /print-settings/:id:', err);
+    logger.error({ err }, 'Errore GET /print-settings/id:')
     res.status(500).json({ error: 'Errore server' });
   }
 });

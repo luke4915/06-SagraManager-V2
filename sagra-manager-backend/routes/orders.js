@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { pool } from '../db.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { printESCPosNetwork } from '../utils/receiptTemplates.js';
+import logger from '../logger.js';
 
 const router = express.Router();
 const TMP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'tmp');
@@ -48,7 +49,7 @@ async function printOrder(orderData, sessionName) {
       };
       await printESCPosNetwork(s, enrichedOrder, sessionName, logoPath);
     } catch (err) {
-      console.error(`Errore stampa [${s.copy_type}]:`, err.message);
+      logger.error({ err }, `Errore stampa [${s.copy_type}]:`)
     }
   }
 }
@@ -71,7 +72,7 @@ export default function (broadcast) {
       const { rows } = await pool.query(query, params);
       res.json(rows.map(o => ({ ...o, items: safeParseJSON(o.items).map(i => ({ ...i, note: i.note || '' })) })));
     } catch (err) {
-      console.error('Errore GET /api/orders:', err);
+      logger.error({ err }, 'Errore GET /api/orders:')
       res.status(500).json({ error: 'Errore nel recupero degli ordini' });
     }
   });
@@ -122,11 +123,11 @@ export default function (broadcast) {
       res.json({ success: true, orderId });
 
       printOrder(orderData, sessionRows[0]?.name || 'Serata').catch(err =>
-        console.error('Errore printOrder:', err)
+        logger.error({ err }, 'Errore printOrder')
       );
     } catch (err) {
       await client.query('ROLLBACK');
-      console.error('Errore POST /api/orders:', err);
+      logger.error({ err }, 'Errore POST /api/orders')
       res.status(500).json({ error: "Errore durante l'invio dell'ordine" });
     } finally {
       client.release();
@@ -151,7 +152,7 @@ export default function (broadcast) {
       if (broadcast) broadcast({ type: 'order_updated', order: updated });
       res.json(updated);
     } catch (err) {
-      console.error('Errore PUT /api/orders/:id:', err);
+      logger.error({ err }, 'Errore PUT /api/orders/:id:')
       res.status(500).json({ error: 'Errore aggiornamento ordine' });
     }
   });
@@ -170,7 +171,7 @@ export default function (broadcast) {
       );
       res.json({ success: true });
     } catch (err) {
-      console.error('Errore reprint:', err);
+      logger.error({ err }, 'Errore ristampa')
       res.status(500).json({ error: 'Errore durante la ristampa' });
     }
   });

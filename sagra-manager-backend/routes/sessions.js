@@ -10,14 +10,21 @@ export default function (broadcast) {
     try {
       const { rows } = await pool.query('SELECT * FROM sessions ORDER BY start_time DESC');
       res.json(rows);
-    } catch { res.status(500).json({ error: 'db error' }); }
+    }
+    catch (err) {
+      logger.error({ err }, 'db error');
+      res.status(500).json({ error: 'db error' });
+    }
   });
 
   router.get('/latest', authenticate, async (req, res) => {
     try {
       const { rows } = await pool.query('SELECT * FROM sessions ORDER BY start_time DESC LIMIT 1');
       res.json(rows[0] || null);
-    } catch { res.status(500).json({ error: 'db error' }); }
+    } catch (err) {
+      logger.error({ err }, 'db error');
+      res.status(500).json({ error: 'db error' });
+    }
   });
 
   router.post('/start', authenticate, authorizeAdmin, async (req, res) => {
@@ -34,7 +41,10 @@ export default function (broadcast) {
       );
       if (broadcast) broadcast({ type: 'session_started', session: rows[0] });
       res.json(rows[0]);
-    } catch { res.status(500).json({ error: 'db error' }); }
+    } catch (err) {
+      logger.error({ err }, 'db error');
+      res.status(500).json({ error: 'db error' });
+    }
   });
 
   router.post('/end', authenticate, authorizeAdmin, async (req, res) => {
@@ -46,7 +56,10 @@ export default function (broadcast) {
       );
       if (rows[0] && broadcast) broadcast({ type: 'session_ended', session: rows[0] });
       res.json(rows[0] || null);
-    } catch { res.status(500).json({ error: 'db error' }); }
+    } catch (err) {
+      logger.error({ err }, 'db error');
+      res.status(500).json({ error: 'db error' });
+    }
   });
 
   return router;

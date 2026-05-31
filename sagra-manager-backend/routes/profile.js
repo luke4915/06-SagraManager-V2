@@ -1,6 +1,7 @@
 import express from 'express';
 import { pool } from '../db.js';
 import { authenticate } from '../middleware/authenticate.js';
+import logger from '../logger.js';
 
 const router = express.Router();
 
@@ -17,7 +18,7 @@ router.patch('/username', authenticate, async (req, res) => {
     await pool.query('UPDATE users SET username=$1 WHERE id=$2', [newUsername.trim(), req.user.id]);
     res.json({ success: true, username: newUsername.trim() });
   } catch (err) {
-    console.error(err);
+    logger.error({ err }, 'Errore server')
     res.status(500).json({ error: 'Errore server' });
   }
 });

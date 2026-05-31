@@ -1,6 +1,7 @@
 import express from "express";
 import { execFile } from "child_process";
 import { authenticate } from "../middleware/authenticate.js";
+import logger from "../logger.js";
 
 const router = express.Router();
 
@@ -22,12 +23,12 @@ function getPrinters() {
       { windowsHide: true, maxBuffer: 1024 * 1024 },
       (error, stdout, stderr) => {
         if (error) {
-          console.error("Errore PowerShell:", error);
+          logger.error({ error }, 'Errore PowerShell:');
           return reject(new Error("Errore durante l'esecuzione PowerShell"));
         }
 
         if (stderr && stderr.trim()) {
-          console.warn("Avviso PowerShell:", stderr);
+          logger.warn({ stderr }, 'Avviso PowerShell');
         }
 
         try {
@@ -35,7 +36,7 @@ function getPrinters() {
           const printers = Array.isArray(parsed) ? parsed : [parsed];
           resolve(printers);
         } catch (err) {
-          console.error("Errore nel parsing JSON:", err);
+          logger.error({ err }, 'Errore nel parsing JSON:')
           reject(new Error("Formato dati non valido da PowerShell"));
         }
       }
@@ -59,7 +60,7 @@ router.get("/", authenticate, async (req, res) => {
 
     res.json(formatted);
   } catch (err) {
-    console.error("Errore recupero stampanti:", err);
+    logger.error({ err }, 'Errore recupero stampanti:')
     res.status(500).json({ error: "Impossibile recuperare le stampanti" });
   }
 });

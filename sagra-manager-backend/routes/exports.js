@@ -1,6 +1,7 @@
 import express from 'express';
 import { pool } from '../db.js';
 import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
+import logger from '../logger.js';
 
 const router = express.Router();
 
@@ -8,8 +9,12 @@ const fmt = (n) => Number(n || 0).toFixed(2).replace('.', ',');
 const esc = (s) => `"${String(s || '').replace(/"/g, '""')}"`;
 
 router.get('/session/:id/csv', authenticate, authorizeAdmin, async (req, res) => {
+
+  const sessionId = parseInt(req.params.id);
+  if (isNaN(sessionId)) return res.status(400).json({ error: 'ID sessione non valido' });
+
   try {
-    const { rows: sessionRows } = await pool.query('SELECT * FROM sessions WHERE id=$1', [req.params.id]);
+    const { rows: sessionRows } = await pool.query('SELECT * FROM sessions WHERE id=$1', [sessionId]);
     const session = sessionRows[0];
     if (!session) return res.status(404).json({ error: 'Sessione non trovata' });
 
@@ -46,10 +51,10 @@ router.get('/session/:id/csv', authenticate, authorizeAdmin, async (req, res) =>
     }
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename=report_sessione_${req.params.id}.csv`);
+    res.setHeader('Content-Disposition', `attachment; filename=report_sessione_${sessionId}.csv`);
     res.status(200).send('\uFEFF' + rows.join('\n'));
   } catch (err) {
-    console.error('Errore CSV:', err);
+    logger.error({ err }, 'Errore CSV')
     res.status(500).json({ error: 'Errore generazione CSV' });
   }
 });

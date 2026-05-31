@@ -1,6 +1,7 @@
 import express from 'express';
 import { pool } from '../db.js';
 import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
+import logger from '../logger.js';
 
 const router = express.Router();
 
@@ -8,12 +9,12 @@ const router = express.Router();
 const VALID_DESTINATIONS = ['bar', 'kitchen', 'both'];
 
 // GET /api/products
-router.get("/", async (req, res) => {
+router.get("/", authenticate, async (req, res) => {
     try {
         const { rows } = await pool.query("SELECT * FROM products ORDER BY category, name");
         res.json(rows);
     } catch (err) {
-        console.error(err);
+        logger.error({ err }, 'Errore caricamento prodotti')
         res.status(500).json({ error: "Errore caricamento prodotti" });
     }
 });
@@ -53,7 +54,7 @@ router.post("/", authenticate, authorizeAdmin, async (req, res) => {
         );
         res.status(201).json(rows[0]);
     } catch (err) {
-        console.error(err);
+        logger.error({ err }, 'Errore salvataggio prodotto')
         res.status(500).json({ error: "Errore salvataggio prodotto" });
     }
 });
@@ -75,7 +76,7 @@ router.put("/:id", authenticate, authorizeAdmin, async (req, res) => {
         if (rows.length === 0) return res.status(404).json({ error: "Prodotto non trovato" });
         res.json(rows[0]);
     } catch (err) {
-        console.error(err);
+        logger.error({ err }, 'Errore aggiornamento prodotto')
         res.status(500).json({ error: "Errore aggiornamento prodotto" });
     }
 });

@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import escpos from 'escpos';
 import escposUsb from 'escpos-usb';
+import helmet from 'helmet';
 
 import authRoutes from './routes/auth.js';
 import profileRoutes from './routes/profile.js';
@@ -19,10 +20,10 @@ import exportRoutes from './routes/exports.js';
 import printSettingsRoutes from './routes/printSettings.js';
 import { loginLimiter, apiLimiter, ordersLimiter } from './middleware/rateLimiter.js';
 import logger from './logger.js';
+import { pool } from './db.js';
 
 escpos.USB = escposUsb;
 dotenv.config();
-import helmet from 'helmet';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
