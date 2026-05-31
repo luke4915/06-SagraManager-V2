@@ -28,7 +28,13 @@ const App = () => {
   const { showToast } = useToast();
 
   const [products, setProducts] = useState([]);
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('cart') || '[]'); }
+    catch { return []; }
+  });
+  useEffect(() => {
+    sessionStorage.setItem('cart', JSON.stringify(cart));
+  }, [cart]);
   const [total, setTotal] = useState(0);
 
   // MODIFICA: Se l'utente ha ruolo 'cucina', la vista iniziale predefinita diventa 'kitchen', altrimenti 'dashboard'
@@ -38,6 +44,7 @@ const App = () => {
   const [showReversePopup, setShowReversePopup] = useState(false);
   const [needsPasswordChange, setNeedsPasswordChange] = useState(false);
   const ws = useRef(null);
+  const [wsConnected, setWsConnected] = useState(false);
 
   const [theme, setTheme] = useState('dark');
   const [isSoundEnabled, setIsSoundEnabled] = useState(true);
@@ -119,10 +126,14 @@ const App = () => {
       .catch(err => console.error(err));
   }, [user, loading]);
 
-  // 3️⃣ WEBSOCKET (Logica Originale preservata)
-  useEffect(() => {
-    if (loading || !user) return;
+  // 3️⃣ WEBSOCKET con reconnect automatico
+  const wsReconnectTimer = useRef(null);
+
+  const connectWS = useRef(null);
+  connectWS.current = () => {
+    if (ws.current?.readyState === WebSocket.OPEN) return;
     ws.current = new WebSocket(WS_URL);
+    ws.current.onopen = () => setWsConnected(true);
     ws.current.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
@@ -151,7 +162,24 @@ const App = () => {
         }
       } catch (err) { console.error("WS Parsing Error", err); }
     };
-    return () => { if (ws.current) ws.current.close(); };
+
+    ws.current.onclose = () => {
+      setWsConnected(false);
+      wsReconnectTimer.current = setTimeout(() => connectWS.current?.(), 3000);
+    };
+
+    ws.current.onerror = () => {
+      ws.current?.close();
+    };
+  };
+
+  useEffect(() => {
+    if (loading || !user) return;
+    connectWS.current();
+    return () => {
+      clearTimeout(wsReconnectTimer.current);
+      ws.current?.close();
+    };
   }, [user, loading]);
 
   // 4️⃣ LOGICA CARRELLO
@@ -177,11 +205,12 @@ const App = () => {
     if (cart.length === 0) return showToast("Carrello vuoto!", "error");
     try {
       const orderPayload = {
-        items: cart.map(item => ({ id: item.id, name: item.name, quantity: item.quantity, price: item.price, note: item.note || "", print_destination: item.print_destination || 'both' })),
-        total,
+        items: cart.map(item => ({
+          id: item.id, name: item.name, quantity: item.quantity,
+          price: item.price, note: item.note || "",
+          print_destination: item.print_destination || 'both'
+        })),
         status: orderMode === "simple" ? "completed" : "pending",
-        created_at: new Date().toISOString(),
-        created_by: user?.id || null
       };
 
       const res = await fetch(`${API_URL}/orders`, {
@@ -191,12 +220,18 @@ const App = () => {
         body: JSON.stringify(orderPayload)
       });
 
-      if (!res.ok) throw new Error("Errore server");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Errore server");
+      }
 
       playSagraSound('order_confirm_sound');
       clearCart();
       showToast("Ordine inviato con successo!", "success");
-    } catch (err) { showToast("Errore durante l'invio", "error"); }
+    } catch (err) {
+      // Carrello NON svuotato — il cassiere può riprovare
+      showToast(`Errore invio ordine: ${err.message}`, "error");
+    }
   };
 
   const handleSessionToggleClick = (targetState) => {
@@ -281,6 +316,7 @@ const App = () => {
           currentUser={user}
           onLogoutClick={() => setShowLogoutConfirm(true)}
           onProfileClick={() => setShowProfilePopup(true)}
+          wsConnected={wsConnected}
         />
 
         <div className="flex-1 flex overflow-hidden p-4 gap-4">
@@ -314,6 +350,7 @@ const App = () => {
                 addToCart={addToCart} removeFromCart={removeFromCart}
                 removeLastItem={removeLastItem} clearCart={clearCart}
                 sendOrder={sendOrder} sessionActive={sessionActive}
+                wsConnected={wsConnected}
               >
                 <button
                   onClick={() => setShowReversePopup(true)}

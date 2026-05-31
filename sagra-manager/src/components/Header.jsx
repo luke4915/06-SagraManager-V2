@@ -1,7 +1,7 @@
 import React from "react";
 import { LogOut, Settings } from "lucide-react";
 
-const Header = ({ title, toggleSidebar, currentUser, onLogoutClick, onProfileClick, sessionName }) => (
+const Header = ({ title, toggleSidebar, currentUser, onLogoutClick, onProfileClick, sessionName, wsConnected }) => (
   <header className="flex items-center justify-between px-6 py-4 bg-transparent">
     <div className="flex flex-col">
       <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
@@ -19,6 +19,10 @@ const Header = ({ title, toggleSidebar, currentUser, onLogoutClick, onProfileCli
               {currentUser.username[0].toUpperCase()}
             </div>
             <span className="text-sm font-semibold text-[var(--text-main)]">{currentUser.username}</span>
+            <span
+              title={wsConnected ? 'Server connesso' : 'Server non raggiungibile'}
+              className={`w-2 h-2 rounded-full shrink-0 ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`}
+            />
           </div>
           <button onClick={onProfileClick} className="p-2 hover:bg-[var(--bg-card-2)] rounded-full transition-all text-[var(--text-muted)] hover:text-[var(--text-main)]">
             <Settings size={20} />

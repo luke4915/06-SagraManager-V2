@@ -77,13 +77,37 @@ export default function (broadcast) {
   });
 
   router.post('/', authenticate, async (req, res) => {
+    const { items, status } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0)
+      return res.status(400).json({ error: 'Ordine vuoto o malformato' });
+
+    const productIds = [...new Set(items.map(i => i.id).filter(Boolean))];
+    const { rows: dbProducts } = await pool.query(
+      'SELECT id, price FROM products WHERE id = ANY($1)', [productIds]
+    );
+    const priceMap = Object.fromEntries(dbProducts.map(p => [p.id, parseFloat(p.price)]));
+
+    for (const item of items) {
+      if (!item.id || !priceMap[item.id])
+        return res.status(400).json({ error: `Prodotto non valido: ${item.id}` });
+      if (!Number.isInteger(item.quantity) || item.quantity < 1)
+        return res.status(400).json({ error: `Quantità non valida per prodotto ${item.id}` });
+    }
+
+    const verifiedItems = items.map(i => ({
+      id: i.id, name: i.name, quantity: i.quantity,
+      price: priceMap[i.id], note: i.note || '',
+      category: i.category || '', print_destination: i.print_destination || 'both',
+    }));
+    const verifiedTotal = verifiedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const { items, total, status, created_at, created_by } = req.body;
       const { rows } = await client.query(
-        'INSERT INTO orders (items, total, status, created_at, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING id, created_at',
-        [JSON.stringify(items), total, status, created_at, created_by]
+        'INSERT INTO orders (items, total, status, created_by) VALUES ($1,$2,$3,$4) RETURNING id, created_at',
+        [JSON.stringify(verifiedItems), verifiedTotal, status || 'pending', req.user.id]
       );
       const orderId = rows[0].id;
       const timestamp = rows[0].created_at;
@@ -92,9 +116,9 @@ export default function (broadcast) {
       const { rows: sessionRows } = await pool.query(
         'SELECT name FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
       );
-      const orderData = { id: orderId, created_at: timestamp, items, total };
+      const orderData = { id: orderId, created_at: timestamp, items: verifiedItems, total: verifiedTotal };
 
-      if (broadcast) broadcast({ type: 'order_created', order: { id: orderId, items, total, status, created_at: timestamp } });
+      if (broadcast) broadcast({ type: 'order_created', order: { id: orderId, items: verifiedItems, total: verifiedTotal, status: status || 'pending', created_at: timestamp } });
       res.json({ success: true, orderId });
 
       printOrder(orderData, sessionRows[0]?.name || 'Serata').catch(err =>

@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { pool } from '../db.js';
 import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
+import logger from '../logger.js';
 
 const router = express.Router();
 
@@ -35,7 +36,7 @@ router.post('/login', async (req, res) => {
     setCookie(res, signToken(user));
     res.json({ id: user.id, username: user.username, role: user.role, needsPassword, theme: user.theme || 'dark' });
   } catch (err) {
-    console.error(err);
+    logger.error({ err }, 'Errore server')
     res.status(500).json({ error: 'Errore server' });
   }
 });
@@ -48,7 +49,7 @@ router.post('/refresh', authenticate, (req, res) => {
     setCookie(res, newToken);
     res.json({ ok: true });
   } catch (err) {
-    console.error(err);
+    logger.error({ err }, 'Errore token refresh')
     res.status(500).json({ error: 'Errore refresh token' });
   }
 });
@@ -73,7 +74,7 @@ router.post('/change-password', authenticate, async (req, res) => {
     await pool.query('UPDATE users SET password_hash=$1 WHERE id=$2', [await bcrypt.hash(newPassword, 10), userId]);
     res.json({ message: 'Password aggiornata con successo' });
   } catch (err) {
-    console.error(err);
+    logger.error({ err }, 'Errore cambio password');
     res.status(500).json({ message: 'Errore server' });
   }
 });
@@ -94,7 +95,7 @@ router.post('/admin/createUser', authenticate, authorizeAdmin, async (req, res) 
     );
     res.status(201).json({ message: 'Utente creato con successo', user: rows[0] });
   } catch (err) {
-    console.error(err);
+    logger.error({ err }, 'Errore createUser');
     res.status(500).json({ error: 'Errore server' });
   }
 });

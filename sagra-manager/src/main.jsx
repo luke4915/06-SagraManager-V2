@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Importiamo i Provider che gestiscono lo stato globale
 import { AuthProvider } from './context/AuthContext';
@@ -13,7 +14,9 @@ root.render(
     <React.StrictMode>
         <AuthProvider>
             <ToastProvider>
-                <App />
+                <ErrorBoundary>
+                    <App />
+                </ErrorBoundary>
             </ToastProvider>
         </AuthProvider>
     </React.StrictMode>

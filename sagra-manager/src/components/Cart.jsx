@@ -123,7 +123,7 @@ const ClearCartModal = ({ onConfirm, onClose }) => (
   </div>
 );
 
-const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem, clearCart, sendOrder, sessionActive, children }) => {
+const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem, clearCart, sendOrder, sessionActive, children, wsConnected }) => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [amountReceived, setAmountReceived] = useState('');
   const [change, setChange] = useState(0);
@@ -229,7 +229,8 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
             <span className="text-2xl font-black tracking-tighter text-[var(--text-main)] tabular-nums">{total.toFixed(2)} €</span>
           </div>
 
-          <button onClick={handleSendOrder} disabled={cart.length === 0 || !sessionActive}
+          <button onClick={handleSendOrder}
+            disabled={cart.length === 0 || !sessionActive || !wsConnected}
             className="w-full h-11 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:bg-[var(--bg-input)] disabled:text-[var(--text-muted)] text-white rounded-xl font-black text-xs uppercase tracking-widest active:scale-[0.99] transition-all flex items-center justify-center gap-2">
             <Check size={15} /> Invia Ordine
           </button>
