@@ -18,8 +18,8 @@ const OrderSettings = ({ orderMode, setOrderMode }) => {
         <div className="flex items-center gap-1">
           <span
             className={`text-sm ${orderMode === "simple"
-                ? "text-blue-600 dark:text-blue-400 font-semibold"
-                : "text-gray-700 dark:text-gray-300"
+              ? "text-[var(--accent)] dark:text-[var(--accent)] font-semibold"
+              : "text-gray-700 dark:text-gray-300"
               }`}
           >
             Semplice
@@ -46,15 +46,15 @@ const OrderSettings = ({ orderMode, setOrderMode }) => {
           className={`relative w-12 h-6 flex items-center rounded-full p-1 transition-colors duration-500
             ${orderMode === "advanced" ? "bg-[var(--accent)]" : "bg-[var(--bg-card-2)] border border-[var(--border)]"}`}
         >
-          <div className="absolute w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-500 ease-in-out"></div>
+          <div style={{ transform: orderMode === 'advanced' ? 'translateX(1.5rem)' : 'translateX(0)' }} className="absolute w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-500 ease-in-out"></div>
         </button>
 
         {/* --- Etichetta Avanzata --- */}
         <div className="flex items-center gap-1">
           <span
             className={`text-sm ${orderMode === "advanced"
-                ? "text-blue-600 dark:text-blue-400 font-semibold"
-                : "text-gray-700 dark:text-gray-300"
+              ? "text-[var(--accent)] dark:text-[var(--accent)] font-semibold"
+              : "text-gray-700 dark:text-gray-300"
               }`}
           >
             Avanzata

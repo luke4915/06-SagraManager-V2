@@ -1,59 +1,71 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL;
 const AuthContext = createContext();
 
+// Refresh silenzioso ogni 6h — il token dura 8h quindi c'è sempre margine
+const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true); // Fondamentale per evitare il "flicker" del login
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const refreshTimer = useRef(null);
 
-    useEffect(() => {
-        const checkAuth = async () => {
-            try {
-                const res = await fetch(`${API_URL}/auth/me`, {
-                    credentials: "include" // ✅ Fondamentale per inviare il cookie
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    setUser(data);
-                }
-            } catch (err) {
-                console.error("Sessione non valida o scaduta");
-            } finally {
-                setLoading(false);
-            }
-        };
-        checkAuth();
-    }, []);
-
-    const login = (userData) => setUser(userData);
-    const logout = async () => {
-        try {
-            // 1. Facciamo la fetch e ASPETTIAMO (await) che il server dica "OK, cookie cancellato"
-            const response = await fetch(`${API_URL}/auth/logout`, {
-                method: 'POST',
-                credentials: 'include'
-            });
-
-            if (!response.ok) {
-                throw new Error("Il server non ha collaborato");
-            }
-
-            // 2. SOLO DOPO che il server ha risposto, aggiorniamo lo stato di React
-            setUser(null);
-
-        } catch (err) {
-            console.error("Logout fallito:", err);
-            // Anche se fallisce, forse conviene fare setUser(null) comunque per sicurezza
-            setUser(null);
+  const startRefreshTimer = () => {
+    if (refreshTimer.current) clearInterval(refreshTimer.current);
+    refreshTimer.current = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_URL}/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          // Token scaduto e refresh fallito → logout forzato
+          setUser(null);
+          clearInterval(refreshTimer.current);
         }
-    };
+      } catch {
+        console.warn('Refresh token fallito — connessione assente?');
+      }
+    }, REFRESH_INTERVAL_MS);
+  };
 
-    return (
-        <AuthContext.Provider value={{ user, loading, login, logout }}>
-            {children}
-        </AuthContext.Provider>
-    );
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const res = await fetch(`${API_URL}/auth/me`, { credentials: 'include' });
+        if (res.ok) {
+          setUser(await res.json());
+          startRefreshTimer();
+        }
+      } catch (err) {
+        console.error('Sessione non valida o scaduta');
+      } finally {
+        setLoading(false);
+      }
+    };
+    checkAuth();
+    return () => { if (refreshTimer.current) clearInterval(refreshTimer.current); };
+  }, []);
+
+  const login = (userData) => {
+    setUser(userData);
+    startRefreshTimer();
+  };
+
+  const logout = async () => {
+    try {
+      await fetch(`${API_URL}/auth/logout`, { method: 'POST', credentials: 'include' });
+    } catch { }
+    setUser(null);
+    if (refreshTimer.current) clearInterval(refreshTimer.current);
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, loading, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => useContext(AuthContext);
