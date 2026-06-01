@@ -194,7 +194,14 @@ const App = () => {
     });
   };
 
-  const clearCart = () => setCart([]);
+  // Se viene chiamata senza argomenti o con false, è silenziosa. 
+  // Se passi true, riproduce il suono.
+  const clearCart = (isManual = false) => {
+    if (isManual) {
+      playSagraSound('empty_cart_sound');
+    }
+    setCart([]);
+  };
   const removeFromCart = (product) => setCart(prev => prev.filter(i => !(i.id === product.id && (i.note || '') === (product.note || ''))));
   const removeLastItem = (product) => setCart(prev =>
     prev.map(i => i.id === product.id && (i.note || '') === (product.note || '') ? { ...i, quantity: i.quantity - 1 } : i).filter(i => i.quantity > 0)

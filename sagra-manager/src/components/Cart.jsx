@@ -251,7 +251,12 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
 
       {currentSelected && <CartItemModal item={currentSelected} onClose={() => setSelectedItem(null)} onAdd={addToCart} onRemove={removeLastItem} onDelete={removeFromCart} onNoteChange={handleNoteChange} />}
       {isReprintModalOpen && <ReprintSelectionModal onClose={() => setIsReprintModalOpen(false)} />}
-      {isClearModalOpen && <ClearCartModal onConfirm={clearCart} onClose={() => setIsClearModalOpen(false)} />}
+      {isClearModalOpen && (
+        <ClearCartModal
+          onConfirm={() => clearCart(true)}
+          onClose={() => setIsClearModalOpen(false)}
+        />
+      )}
     </>
   );
 };

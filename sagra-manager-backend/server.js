@@ -93,7 +93,7 @@ app.use((err, _req, res, _next) => {
 });
 
 process.on('SIGTERM', () => {
-  console.log('SIGTERM ricevuto, chiusura server...');
+  logger.info('SIGTERM ricevuto, chiusura server...');
   server.close(() => {
     pool.end(() => process.exit(0));
   });

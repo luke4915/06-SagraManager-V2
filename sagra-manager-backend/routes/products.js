@@ -90,6 +90,7 @@ router.delete("/:id", authenticate, authorizeAdmin, async (req, res) => {
         res.json({ message: "Prodotto eliminato" });
     } catch (err) {
         res.status(500).json({ error: "Errore eliminazione prodotto" });
+        logger.error({ err }, 'Errore eliminazione prodotto')
     }
 });
 

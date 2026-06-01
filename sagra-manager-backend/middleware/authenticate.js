@@ -9,7 +9,7 @@ export function authenticate(req, res, next) {
   if (!token) return res.status(401).json({ error: 'Token mancante' });
 
   if (!process.env.JWT_SECRET) {
-    console.error('JWT_SECRET non impostata');
+    logger.error({ err }, 'JWT_SECRET non impostata')
     return res.status(500).json({ error: 'Server misconfigured' });
   }
 
