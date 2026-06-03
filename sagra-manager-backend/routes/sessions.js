@@ -2,6 +2,8 @@ import express from 'express';
 import { pool } from '../db.js';
 import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
 import logger from '../logger.js'
+// 🔴 NUOVO IMPORT
+import { logAudit } from '../utils/auditLogger.js';
 
 const router = express.Router();
 
@@ -28,6 +30,7 @@ export default function (broadcast) {
     }
   });
 
+  // POST /start (Apertura Sessione - TRACCIATO)
   router.post('/start', authenticate, authorizeAdmin, async (req, res) => {
     try {
       const { name } = req.body;
@@ -40,6 +43,13 @@ export default function (broadcast) {
         'INSERT INTO sessions (name, start_time) VALUES ($1, NOW()) RETURNING *',
         [name.trim()]
       );
+
+      // 🔴 AGGIUNTA: Logghiamo l'apertura della sessione
+      await logAudit(req.user.id, 'START_SESSION', {
+        sessionId: rows[0].id,
+        sessionName: rows[0].name
+      });
+
       if (broadcast) broadcast({ type: 'session_started', session: rows[0] });
       res.json(rows[0]);
     } catch (err) {
@@ -48,6 +58,7 @@ export default function (broadcast) {
     }
   });
 
+  // POST /end (Chiusura Sessione - TRACCIATO)
   router.post('/end', authenticate, authorizeAdmin, async (req, res) => {
     try {
       const { rows } = await pool.query(
@@ -55,7 +66,17 @@ export default function (broadcast) {
          WHERE id = (SELECT id FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1)
          RETURNING *`
       );
-      if (rows[0] && broadcast) broadcast({ type: 'session_ended', session: rows[0] });
+
+      if (rows[0]) {
+        // 🔴 AGGIUNTA: Logghiamo la chiusura della sessione solo se effettivamente ce n'era una attiva
+        await logAudit(req.user.id, 'END_SESSION', {
+          sessionId: rows[0].id,
+          sessionName: rows[0].name
+        });
+
+        if (broadcast) broadcast({ type: 'session_ended', session: rows[0] });
+      }
+
       res.json(rows[0] || null);
     } catch (err) {
       logger.error({ err }, 'db error');

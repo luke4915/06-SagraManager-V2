@@ -6,10 +6,12 @@ import { pool } from '../db.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { printESCPosNetwork } from '../utils/receiptTemplates.js';
 import logger from '../logger.js';
+// NUOVO IMPORT
+import { logAudit } from '../utils/auditLogger.js';
 
 const router = express.Router();
 const TMP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'tmp');
-fs.mkdirSync(TMP_DIR, { recursive: true }); // una volta sola all'avvio
+fs.mkdirSync(TMP_DIR, { recursive: true });
 
 function safeParseJSON(value, fallback = []) {
   try { return Array.isArray(value) ? value : JSON.parse(value || '[]'); }
@@ -19,6 +21,7 @@ function safeParseJSON(value, fallback = []) {
 const TERMINAL_STATUSES = ['canceled', 'completed'];
 
 async function printOrder(orderData, sessionName) {
+  // ... (rimane invariato il codice di stampa attuale) ...
   const { rows: settings } = await pool.query(
     `SELECT ps.printer_type, ps.printer_address, ct.name AS copy_type
      FROM print_settings ps
@@ -27,7 +30,6 @@ async function printOrder(orderData, sessionName) {
   );
   if (!settings.length) return;
 
-  // Recupera print_destination di tutti i prodotti in una query sola
   const productIds = [...new Set(orderData.items.map(i => i.id).filter(Boolean))];
   const destMap = {};
   if (productIds.length) {
@@ -40,7 +42,6 @@ async function printOrder(orderData, sessionName) {
 
   const logoPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'logo_SagraManager_ESC_POS.png');
 
-  // Stampa sequenziale per evitare conflitti TCP sulla stessa porta
   for (const s of settings) {
     try {
       const enrichedOrder = {
@@ -56,6 +57,7 @@ async function printOrder(orderData, sessionName) {
 
 export default function (broadcast) {
 
+  // GET /orders (Rimane invariato)
   router.get('/', authenticate, async (req, res) => {
     try {
       let query = 'SELECT * FROM orders ORDER BY created_at DESC';
@@ -77,6 +79,7 @@ export default function (broadcast) {
     }
   });
 
+  // POST /orders (Creazione Ordine - TRACCIATO)
   router.post('/', authenticate, async (req, res) => {
     const { items, status } = req.body;
 
@@ -114,6 +117,13 @@ export default function (broadcast) {
       const timestamp = rows[0].created_at;
       await client.query('COMMIT');
 
+      // 🔴 AGGIUNTA: Tracciamo la creazione dell'ordine nell'Audit Log
+      await logAudit(req.user.id, 'CREATE_ORDER', {
+        orderId,
+        total: verifiedTotal,
+        itemCount: verifiedItems.length
+      });
+
       const { rows: sessionRows } = await pool.query(
         'SELECT name FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
       );
@@ -134,6 +144,7 @@ export default function (broadcast) {
     }
   });
 
+  // PUT /orders/:id (Modifica/Storno Stato - TRACCIATO)
   router.put('/:id', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
@@ -149,6 +160,14 @@ export default function (broadcast) {
         completedAt ? [status, id, completedAt] : [status, id]
       );
       const updated = { ...rows[0], items: safeParseJSON(rows[0].items) };
+
+      // 🔴 AGGIUNTA: Tracciamo il cambio di stato (utilissimo se l'ordine viene annullato/stornato!)
+      await logAudit(req.user.id, 'UPDATE_ORDER_STATUS', {
+        orderId: id,
+        oldStatus: current[0].status,
+        newStatus: status
+      });
+
       if (broadcast) broadcast({ type: 'order_updated', order: updated });
       res.json(updated);
     } catch (err) {
@@ -157,11 +176,16 @@ export default function (broadcast) {
     }
   });
 
+  // POST /orders/:id/reprint (Ristampa Scontrino - TRACCIATO)
   router.post('/:id/reprint', authenticate, async (req, res) => {
     try {
       const { rows } = await pool.query('SELECT * FROM orders WHERE id=$1', [req.params.id]);
       if (!rows.length) return res.status(404).json({ error: 'Ordine non trovato' });
       const order = rows[0];
+
+      // 🔴 AGGIUNTA: Tracciamo chi richiede la ristampa di uno scontrino
+      await logAudit(req.user.id, 'REPRINT_ORDER', { orderId: req.params.id });
+
       const { rows: sessionRows } = await pool.query(
         'SELECT name FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
       );
