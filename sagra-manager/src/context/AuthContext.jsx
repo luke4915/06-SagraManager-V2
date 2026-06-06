@@ -18,14 +18,17 @@ export const AuthProvider = ({ children }) => {
         const res = await fetch(`${API_URL}/auth/refresh`, {
           method: 'POST',
           credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          }
         });
         if (!res.ok) {
-          // Token scaduto e refresh fallito → logout forzato
+          // Token scaduto, cookie non valido o refresh fallito → logout forzato sicuro
           setUser(null);
-          clearInterval(refreshTimer.current);
+          if (refreshTimer.current) clearInterval(refreshTimer.current);
         }
-      } catch {
-        console.warn('Refresh token fallito — connessione assente?');
+      } catch (err) {
+        console.warn('Refresh token fallito — backend non raggiungibile o sessione assente?', err);
       }
     }, REFRESH_INTERVAL_MS);
   };
@@ -35,11 +38,16 @@ export const AuthProvider = ({ children }) => {
       try {
         const res = await fetch(`${API_URL}/auth/me`, { credentials: 'include' });
         if (res.ok) {
-          setUser(await res.json());
+          const userData = await res.json();
+          setUser(userData);
           startRefreshTimer();
+        } else {
+          // Se lo status non è 200 (es: 401 Unauthorized), azzeriamo l'utente locale
+          setUser(null);
         }
       } catch (err) {
-        console.error('Sessione non valida o scaduta');
+        console.error('Sessione non valida, scaduta o server HTTPS non in ascolto', err);
+        setUser(null); // 🔴 SICUREZZA: Forza lo stato vuoto se il server risponde picche o è offline
       } finally {
         setLoading(false);
       }
@@ -55,8 +63,17 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await fetch(`${API_URL}/auth/logout`, { method: 'POST', credentials: 'include' });
-    } catch { }
+      await fetch(`${API_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+    } catch (err) {
+      console.warn('Chiamata di logout al server fallita, pulizia stato locale in corso...', err);
+    }
+    // Pulizia immediata e aggressiva dello stato locale (UX istantanea per l'operatore)
     setUser(null);
     if (refreshTimer.current) clearInterval(refreshTimer.current);
   };

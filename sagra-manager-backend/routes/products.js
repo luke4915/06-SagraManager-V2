@@ -8,6 +8,20 @@ const router = express.Router();
 // Valori ammessi per print_destination
 const VALID_DESTINATIONS = ['bar', 'kitchen', 'both'];
 
+// GET /api/products/menu — pubblico, solo prodotti visibili + nome sessione attiva
+router.get('/menu', async (req, res) => {
+    try {
+        const [{ rows: products }, { rows: sessions }] = await Promise.all([
+            pool.query('SELECT id, name, price, category, color FROM products WHERE visible = true ORDER BY category, name'),
+            pool.query('SELECT name FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1')
+        ]);
+        res.json({ sessionName: sessions[0]?.name || null, products });
+    } catch (err) {
+        logger.error({ err }, 'Errore GET /api/products/menu');
+        res.status(500).json({ error: 'Errore caricamento menu' });
+    }
+});
+
 // GET /api/products
 router.get("/", authenticate, async (req, res) => {
     try {

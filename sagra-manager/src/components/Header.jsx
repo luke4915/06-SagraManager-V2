@@ -1,16 +1,34 @@
 import React from "react";
-import { LogOut, Settings } from "lucide-react";
+import { LogOut, Settings, Menu } from "lucide-react"; // Aggiunto Menu
 
-const Header = ({ title, toggleSidebar, currentUser, onLogoutClick, onProfileClick, sessionName, wsConnected }) => (
+const Header = ({ title, toggleSidebar, isSidebarOpen, currentUser, onLogoutClick, onProfileClick, sessionName, wsConnected }) => (
   <header className="flex items-center justify-between px-6 py-4 bg-transparent">
-    <div className="flex flex-col">
-      <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
-        <span>Sagra Manager</span>
-        <span>/</span>
-        <span className="font-medium text-[var(--text-main)]">{sessionName || "Dashboard"}</span>
+
+    {/* Contenitore di sinistra: allinea l'hamburger e i testi su mobile */}
+    <div className="flex items-center gap-4">
+
+      {/* ☰ TOGGLE SIDEBAR MOBILE: Visibile solo sotto il breakpoint xl (xl:hidden) */}
+      <button
+        onClick={toggleSidebar}
+        className="xl:hidden p-2.5 bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)] rounded-2xl active:scale-95 transition-all shadow-xs"
+        aria-label="Apri menu"
+      >
+        <Menu size={22} />
+      </button>
+
+      {/* Blocco testi originale */}
+      <div className="flex flex-col">
+        <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
+          <span>Sagra Manager</span>
+          <span>/</span>
+          <span className="font-medium text-[var(--text-main)]">{sessionName || "Dashboard"}</span>
+        </div>
+        <h1 className="text-2xl font-black tracking-tight text-[var(--text-main)]">{title}</h1>
       </div>
-      <h1 className="text-2xl font-black tracking-tight text-[var(--text-main)]">{title}</h1>
+
     </div>
+
+    {/* Contenitore di destra: Profilo e Logout (Identico al tuo) */}
     <div className="flex items-center gap-3 bg-[var(--bg-card)] p-2 rounded-4xl border border-[var(--border)] shadow-sm transition-[background-color,border-color] duration-300">
       {currentUser && (
         <>

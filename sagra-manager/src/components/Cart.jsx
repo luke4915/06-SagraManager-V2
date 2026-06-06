@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Trash2, Plus, Minus, ShoppingCart, Check, Printer, X, MessageSquare } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Trash2, Plus, Minus, ShoppingCart, Check, Printer, X, MessageSquare, QrCode } from 'lucide-react';
+import jsQR from 'jsqr';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
+// ─── Modale ristampa ────────────────────────────────────────────
 const ReprintSelectionModal = ({ onClose }) => {
   const [recentOrders, setRecentOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -66,6 +68,213 @@ const ReprintSelectionModal = ({ onClose }) => {
   );
 };
 
+// ─── Modale scan QR ─────────────────────────────────────────────
+const QRScanModal = ({ currentCart, onMerge, onReplace, onClose }) => {
+  const [scanning, setScanning] = useState(false);
+  const [scannerError, setScannerError] = useState('');
+  const [scanned, setScanned] = useState(null);
+  const videoRef = useRef(null);
+  const animFrameRef = useRef(null);
+  const streamRef = useRef(null);
+
+  // Fai partire la richiesta permessi fotocamera non appena si apre la modale
+  useEffect(() => {
+    startScanner();
+    return () => stopScanner();
+  }, []);
+
+  const startScanner = async () => {
+    setScannerError('');
+
+    // Verifica supporto HTTPS o ambiente locale protetto
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setScannerError('Fotocamera non supportata (richiede HTTPS).');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
+      });
+
+      streamRef.current = stream;
+      setScanning(true);
+
+      // Ritardo millesimale per consentire al browser di montare l'elemento video nel DOM
+      setTimeout(async () => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          try {
+            await videoRef.current.play();
+            // Avvia la decodifica dei fotogrammi solo dopo il play andato a buon fine
+            animFrameRef.current = requestAnimationFrame(scanFrame);
+          } catch (playErr) {
+            console.error("Errore playback video:", playErr);
+          }
+        }
+      }, 100);
+
+    } catch (err) {
+      console.error("Errore getUserMedia:", err);
+      if (err.name === 'NotAllowedError') {
+        setScannerError('Permesso fotocamera negato dall\'utente.');
+      } else {
+        setScannerError('Impossibile accedere alla fotocamera.');
+      }
+    }
+  };
+
+  const scanFrame = () => {
+    const video = videoRef.current;
+    if (!video || video.readyState !== video.HAVE_ENOUGH_DATA) {
+      animFrameRef.current = requestAnimationFrame(scanFrame);
+      return;
+    }
+
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0);
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+      if (code) {
+        try {
+          // Decodifica la stringa in base64
+          const items = JSON.parse(atob(code.data));
+          if (Array.isArray(items) && items.length > 0) {
+            stopScanner();
+            setScanned(items);
+            return;
+          } else {
+            setScannerError('Contenuto QR non valido.');
+          }
+        } catch {
+          setScannerError('Formato QR non riconosciuto.');
+        }
+      }
+    } catch (canvasErr) {
+      console.error("Errore elaborazione frame:", canvasErr);
+    }
+
+    animFrameRef.current = requestAnimationFrame(scanFrame);
+  };
+
+  const stopScanner = () => {
+    setScanning(false);
+
+    // 1. Cancella subito il loop di animazione prima di toccare lo stream
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+
+    // 2. Ferma tutte le tracce hardware dello stream
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => {
+        track.stop();
+        console.log("Traccia stoppata:", track.label);
+      });
+      streamRef.current = null;
+    }
+
+    // 3. FIX SPECIFICO PER iOS: Resetta e svuota completamente l'elemento video nativo
+    if (videoRef.current) {
+      const video = videoRef.current;
+      video.pause();           // Forza la pausa
+      video.srcObject = null;  // Rimuove lo stream
+      video.removeAttribute('src'); // Rimuove eventuali sorgenti residue
+      video.load();            // Forza iOS a ricaricare l'elemento vuoto rilasciando la cam
+    }
+  };
+
+  const hasCart = currentCart.length > 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative w-full max-w-sm bg-[var(--bg-card)] rounded-xl border border-[var(--border)] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-0.5">Importa ordine</p>
+            <h3 className="font-black text-sm uppercase tracking-tight text-[var(--text-main)]">Scansiona QR cliente</h3>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"><X size={15} /></button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* Vista di scansione attiva */}
+          {!scanned && (
+            <div className="flex flex-col items-center gap-3">
+              <div className="relative w-full aspect-video rounded-xl overflow-hidden border-2 border-[var(--accent)] bg-black flex items-center justify-center">
+                {scanning ? (
+                  // Aggiunti autoPlay, playsInline e muted per forzare i browser mobile ad attivare la cam
+                  <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
+                ) : (
+                  <p className="text-xs text-gray-400">Inizializzazione cam...</p>
+                )}
+                <div className="absolute inset-0 border-2 border-dashed border-white/30 m-4 pointer-events-none rounded-lg" />
+              </div>
+
+              {scannerError && <p className="text-red-500 text-xs font-bold text-center bg-red-500/10 p-2 rounded-lg border border-red-500/20 w-full">{scannerError}</p>}
+
+              <button onClick={onClose}
+                className="w-full py-2.5 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-red-500 hover:text-white">
+                Annulla Scansione
+              </button>
+            </div>
+          )}
+
+          {/* Risultato scansione */}
+          {scanned && (
+            <div className="space-y-4">
+              <div className="bg-[var(--bg-card-2)] rounded-xl border border-[var(--border)] p-4 space-y-1.5">
+                <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-2">Ordine scansionato</p>
+                {scanned.map((item, idx) => (
+                  <div key={idx} className="flex justify-between text-sm">
+                    <span className="font-bold text-[var(--text-main)]">×{item.quantity} {item.name}</span>
+                    <span className="text-[var(--text-muted)] tabular-nums">€{(parseFloat(item.price) * item.quantity).toFixed(2)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between font-black text-[var(--text-main)] border-t border-[var(--border)] pt-2 mt-2">
+                  <span>Totale</span>
+                  <span className="text-[var(--accent)]">€{scanned.reduce((s, i) => s + parseFloat(i.price) * i.quantity, 0).toFixed(2)}</span>
+                </div>
+              </div>
+
+              {!hasCart && (
+                <button onClick={() => onReplace(scanned)}
+                  className="w-full py-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2">
+                  <Check size={14} /> Carica nel carrello
+                </button>
+              )}
+
+              {hasCart && (
+                <div className="space-y-2">
+                  <p className="text-xs text-[var(--text-muted)] font-bold text-center">Il carrello ha già degli articoli</p>
+                  <button onClick={() => onMerge(scanned)}
+                    className="w-full py-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all">
+                    Unisci ordini
+                  </button>
+                  <button onClick={() => onReplace(scanned)}
+                    className="w-full py-3 bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] hover:border-[var(--accent)] rounded-xl font-black text-xs uppercase tracking-widest transition-all">
+                    Sostituisci carrello
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Modale item carrello ───────────────────────────────────────
 const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange }) => {
   const [note, setNote] = useState(item.note || '');
   const handleClose = () => { if (note !== (item.note || '')) onNoteChange(item, note); onClose(); };
@@ -109,6 +318,7 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange 
   );
 };
 
+// ─── Modale svuota carrello ─────────────────────────────────────
 const ClearCartModal = ({ onConfirm, onClose }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
@@ -123,11 +333,13 @@ const ClearCartModal = ({ onConfirm, onClose }) => (
   </div>
 );
 
+// ─── Cart principale ────────────────────────────────────────────
 const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem, clearCart, sendOrder, sessionActive, children, wsConnected }) => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [amountReceived, setAmountReceived] = useState('');
   const [change, setChange] = useState(0);
   const [isReprintModalOpen, setIsReprintModalOpen] = useState(false);
+  const [isQRScanModalOpen, setIsQRScanModalOpen] = useState(false);
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
 
   useEffect(() => {
@@ -160,6 +372,25 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
     setAmountReceived('');
   };
 
+  // QR scan handlers
+  const handleQRReplace = (items) => {
+    setCart(items.map(i => ({ ...i, note: i.note || '' })));
+    setIsQRScanModalOpen(false);
+  };
+
+  const handleQRMerge = (items) => {
+    setCart(prev => {
+      const merged = [...prev];
+      items.forEach(newItem => {
+        const idx = merged.findIndex(i => i.id === newItem.id && (i.note || '') === (newItem.note || ''));
+        if (idx >= 0) merged[idx] = { ...merged[idx], quantity: merged[idx].quantity + newItem.quantity };
+        else merged.push({ ...newItem, note: newItem.note || '' });
+      });
+      return merged;
+    });
+    setIsQRScanModalOpen(false);
+  };
+
   const mergedCart = mergeCartItems(cart);
   const currentSelected = selectedItem ? mergedCart.find(i => i.id === selectedItem.id && (i.note || '') === (selectedItem.note || '')) : null;
 
@@ -175,10 +406,16 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
               {sessionActive ? '● Sessione attiva' : '● Sessione non attiva'}
             </span>
           </div>
-          <button onClick={() => setIsReprintModalOpen(true)} title="Ristampa scontrini recenti"
-            className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]/50 transition-all">
-            <Printer size={16} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setIsQRScanModalOpen(true)} title="Importa ordine da QR"
+              className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]/50 transition-all">
+              <QrCode size={16} />
+            </button>
+            <button onClick={() => setIsReprintModalOpen(true)} title="Ristampa scontrini recenti"
+              className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]/50 transition-all">
+              <Printer size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Lista articoli */}
@@ -251,12 +488,8 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
 
       {currentSelected && <CartItemModal item={currentSelected} onClose={() => setSelectedItem(null)} onAdd={addToCart} onRemove={removeLastItem} onDelete={removeFromCart} onNoteChange={handleNoteChange} />}
       {isReprintModalOpen && <ReprintSelectionModal onClose={() => setIsReprintModalOpen(false)} />}
-      {isClearModalOpen && (
-        <ClearCartModal
-          onConfirm={() => clearCart(true)}
-          onClose={() => setIsClearModalOpen(false)}
-        />
-      )}
+      {isClearModalOpen && <ClearCartModal onConfirm={() => clearCart(true)} onClose={() => setIsClearModalOpen(false)} />}
+      {isQRScanModalOpen && <QRScanModal currentCart={cart} onMerge={handleQRMerge} onReplace={handleQRReplace} onClose={() => setIsQRScanModalOpen(false)} />}
     </>
   );
 };

@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
-import { createServer } from 'http';
+// 🔴 MODIFICA: Importiamo 'createServer' da 'https' nativo anziché 'http'
+import { createServer } from 'https';
 import { WebSocketServer } from 'ws';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
@@ -9,6 +10,7 @@ import path from 'path';
 import escpos from 'escpos';
 import escposUsb from 'escpos-usb';
 import helmet from 'helmet';
+import fs from 'fs'; // 🔴 NUOVO: Necessario per leggere i file .pem di mkcert
 
 import authRoutes from './routes/auth.js';
 import profileRoutes from './routes/profile.js';
@@ -18,6 +20,7 @@ import orderRoutes from './routes/orders.js';
 import sessionRoutes from './routes/sessions.js';
 import exportRoutes from './routes/exports.js';
 import printSettingsRoutes from './routes/printSettings.js';
+import settingsRoutes from './routes/settings.js';
 import { loginLimiter, apiLimiter, ordersLimiter } from './middleware/rateLimiter.js';
 import logger from './logger.js';
 import { pool } from './db.js';
@@ -28,7 +31,16 @@ dotenv.config();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+// 🔴 MODIFICA: Aggiornato Helmet con CSP permissivo per consentire le connessioni WSS locali
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      "connect-src": ["'self'", "https://*", "wss://*"],
+    },
+  },
+}));
 
 // Crash immediato se JWT_SECRET mancante
 if (!process.env.JWT_SECRET) {
@@ -42,7 +54,9 @@ app.use(cookieParser());
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin) return cb(null, true);
-    const ok = origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('192.168.');
+    const ok = origin.includes('localhost') ||
+      origin.includes('127.0.0.1') ||
+      origin.includes('192.168.')
     cb(ok ? null : new Error('CORS non consentito'), ok);
   },
   credentials: true,
@@ -56,11 +70,30 @@ app.use('/api', apiLimiter);
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/orders', ordersLimiter);
 
-const server = createServer(app);
+// 🔴 MODIFICA: Caricamento sicuro dei certificati mkcert da variabili d'ambiente con fallback sul tuo file attuale
+const keyPath = process.env.HTTPS_KEY_PATH || './192.168.1.99+2-key.pem';
+const certPath = process.env.HTTPS_CERT_PATH || './192.168.1.99+2.pem';
+
+let httpsOptions;
+try {
+  httpsOptions = {
+    key: fs.readFileSync(path.resolve(keyPath)),
+    cert: fs.readFileSync(path.resolve(certPath)),
+  };
+  logger.info('Certificati SSL di mkcert caricati correttamente');
+} catch (err) {
+  logger.error({ err }, 'FATALE: Impossibile avviare il backend. File dei certificati mkcert mancanti o non leggibili');
+  process.exit(1);
+}
+
+// 🔴 MODIFICA: Passiamo le opzioni SSL al server HTTPS
+const server = createServer(httpsOptions, app);
+
+// Il server WebSocket eredita automaticamente lo strato SSL diventando a tutti gli effetti WSS://
 const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws) => {
-  logger.info('WS client connesso');
+  logger.info('WS client connesso in modalità sicura (WSS)');
   ws.send(JSON.stringify({ type: 'connected' }));
   ws.on('error', (err) => logger.error({ err }, 'WS client error'));
 });
@@ -78,6 +111,7 @@ app.use('/api/print-settings', printSettingsRoutes);
 app.use('/api/orders', orderRoutes(broadcast));
 app.use('/api/sessions', sessionRoutes(broadcast));
 app.use('/api/exports', exportRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Serve frontend build in produzione
 const distPath = path.join(__dirname, '..', 'sagra-manager', 'dist');
@@ -100,4 +134,5 @@ process.on('SIGTERM', () => {
 });
 
 const PORT = parseInt(process.env.PORT) || 3000;
-server.listen(PORT, '0.0.0.0', () => logger.info(`🚀 API + WS su http://0.0.0.0:${PORT}`));
+// 🔴 NOTA: Adesso l'endpoint locale risponde su https:// anziché http://
+server.listen(PORT, '0.0.0.0', () => logger.info(`🚀 API sicure + WSS in ascolto su https://0.0.0.0:${PORT}`));

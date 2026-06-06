@@ -200,5 +200,23 @@ export default function (broadcast) {
     }
   });
 
+  // GET /orders/kds — pubblico, solo ordini pending/preparing della sessione attiva
+  router.get('/kds', async (req, res) => {
+    try {
+      const { rows: sessions } = await pool.query(
+        'SELECT start_time FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
+      );
+      if (!sessions.length) return res.json([]);
+      const { rows } = await pool.query(
+        `SELECT * FROM orders WHERE status IN ('pending','preparing') AND created_at >= $1 ORDER BY created_at DESC`,
+        [sessions[0].start_time]
+      );
+      res.json(rows.map(o => ({ ...o, items: safeParseJSON(o.items).map(i => ({ ...i, note: i.note || '' })) })));
+    } catch (err) {
+      logger.error({ err }, 'Errore GET /api/orders/kds');
+      res.status(500).json({ error: 'Errore recupero ordini KDS' });
+    }
+  });
+
   return router;
 }

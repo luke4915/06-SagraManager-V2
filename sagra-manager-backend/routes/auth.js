@@ -7,16 +7,17 @@ import logger from '../logger.js';
 
 const router = express.Router();
 
+// 🔴 MODIFICA: Includiamo anche il 'theme' nel token JWT per passarlo al frontend
 const signToken = (user) => jwt.sign(
-  { id: user.id, username: user.username, role: user.role },
+  { id: user.id, username: user.username, role: user.role, theme: user.theme || 'dark' },
   process.env.JWT_SECRET,
   { expiresIn: '8h' }
 );
 
 const setCookie = (res, token) => res.cookie('token', token, {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax',
+  secure: true,
+  sameSite: 'none',
   path: '/',
   maxAge: 1000 * 60 * 60 * 8,
 });
@@ -34,6 +35,7 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Password errata' });
 
     setCookie(res, signToken(user));
+
     res.json({ id: user.id, username: user.username, role: user.role, needsPassword, theme: user.theme || 'dark' });
   } catch (err) {
     logger.error({ err }, 'Errore server')
@@ -41,10 +43,9 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// REFRESH TOKEN — silent, nessun re-login richiesto
+// REFRESH TOKEN
 router.post('/refresh', authenticate, (req, res) => {
   try {
-    // Emette un token fresco se la sessione è ancora valida
     const newToken = signToken(req.user);
     setCookie(res, newToken);
     res.json({ ok: true });
@@ -72,6 +73,7 @@ router.post('/change-password', authenticate, async (req, res) => {
         return res.status(401).json({ message: 'Password attuale errata' });
     }
     await pool.query('UPDATE users SET password_hash=$1 WHERE id=$2', [await bcrypt.hash(newPassword, 10), userId]);
+
     res.json({ message: 'Password aggiornata con successo' });
   } catch (err) {
     logger.error({ err }, 'Errore cambio password');
@@ -93,6 +95,7 @@ router.post('/admin/createUser', authenticate, authorizeAdmin, async (req, res) 
       'INSERT INTO users (username, role) VALUES ($1, $2) RETURNING id, username, role',
       [username.trim(), role || 'cassa']
     );
+
     res.status(201).json({ message: 'Utente creato con successo', user: rows[0] });
   } catch (err) {
     logger.error({ err }, 'Errore createUser');
@@ -101,11 +104,25 @@ router.post('/admin/createUser', authenticate, authorizeAdmin, async (req, res) 
 });
 
 // ME
-router.get('/me', authenticate, (req, res) => res.json(req.user));
+// 🔴 MODIFICA: Restituiamo req.user assicurandoci che contenga il flag theme atteso dal frontend
+router.get('/me', authenticate, (req, res) => {
+  res.json({
+    id: req.user.id,
+    username: req.user.username,
+    role: req.user.role,
+    theme: req.user.theme || 'dark'
+  });
+});
 
 // LOGOUT
 router.post('/logout', (req, res) => {
-  res.cookie('token', '', { httpOnly: true, path: '/', expires: new Date(0) });
+  res.cookie('token', '', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none',
+    path: '/',
+    expires: new Date(0)
+  });
   res.json({ message: 'Bye' });
 });
 
