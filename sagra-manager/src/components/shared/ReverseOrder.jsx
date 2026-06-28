@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X, AlertTriangle } from 'lucide-react';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../../context/ToastContext';
 
 const API_URL = import.meta.env.VITE_API_URL;
 

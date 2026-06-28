@@ -21,7 +21,6 @@ function safeParseJSON(value, fallback = []) {
 const TERMINAL_STATUSES = ['canceled', 'completed'];
 
 async function printOrder(orderData, sessionName) {
-  // ... (rimane invariato il codice di stampa attuale) ...
   const { rows: settings } = await pool.query(
     `SELECT ps.printer_type, ps.printer_address, ct.name AS copy_type
      FROM print_settings ps
@@ -48,9 +47,16 @@ async function printOrder(orderData, sessionName) {
         ...orderData,
         items: orderData.items.map(i => ({ ...i, print_destination: destMap[i.id] || 'both' })),
       };
+
+      // Logghiamo l'inizio del processo per monitorare lo stato in Express
+      logger.info(`[ROUTER ORDERS] Avvio flusso di stampa per copia: ${s.copy_type} su ${s.printer_address}`);
+
+      // Attendiamo esplicitamente che il socket si apra, scriva e si chiuda prima di passare alla copia successiva
       await printESCPosNetwork(s, enrichedOrder, sessionName, logoPath);
+
+      logger.info(`[ROUTER ORDERS] Flusso di stampa completato per copia: ${s.copy_type}`);
     } catch (err) {
-      logger.error({ err }, `Errore stampa [${s.copy_type}]:`)
+      logger.error({ err }, `Errore stampa [${s.copy_type}]: ${err.message}`);
     }
   }
 }

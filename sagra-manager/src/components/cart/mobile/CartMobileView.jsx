@@ -1,0 +1,199 @@
+import React from 'react';
+import { ShoppingCart, Check, Printer, MessageSquare, QrCode, Trash2 } from 'lucide-react';
+
+const CartMobileView = ({
+    onClose,
+    cart,
+    mergedCart,
+    cartKey,
+    total,
+    amountReceived,
+    setAmountReceived,
+    change,
+    sessionActive,
+    wsConnected,
+    handleSendOrder,
+    setSelectedItem,
+    setIsQRScanModalOpen,
+    setIsReprintModalOpen,
+    setIsClearModalOpen,
+    children
+}) => {
+
+    // Tastierino numerico rapido per velocizzare la cassa da smartphone
+    const quickCashOptions = [5, 10, 20, 50];
+
+    const handleQuickCash = (value) => {
+        setAmountReceived(value.toString());
+    };
+
+    const handleExactCash = () => {
+        setAmountReceived(total.toFixed(2));
+    };
+
+    return (
+        <div className="flex flex-col h-[100dvh] bg-[var(--bg-card)] text-[var(--text-main)] overflow-hidden safe-bottom">
+
+            {/* Handle swipe-down — pattern nativo iOS */}
+            <div className="flex justify-center pt-3 pb-1 shrink-0" onClick={onClose}>
+                <div className="w-10 h-1 rounded-full bg-[var(--border)]" />
+            </div>
+
+            {/* ─── HEADER MOBILE OPTIMIZED ─── */}
+            <div className="px-4 py-3 flex justify-between items-center border-b border-[var(--border)] bg-[var(--bg-card)] shrink-0">
+                <div>
+                    <div className="flex items-center gap-2">
+                        <h2 className="text-lg font-black tracking-tight uppercase">Carrello</h2>
+                        <span className="bg-[var(--accent)]/10 text-[var(--accent)] text-xs font-black px-2 py-0.5 rounded-full">
+                            {cart.length} pezzi
+                        </span>
+                    </div>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${sessionActive ? 'text-green-500' : 'text-red-400'}`}>
+                        {sessionActive ? '● Sessione attiva' : '● Non attiva'}
+                    </span>
+                </div>
+
+                {/* Pulsanti azione rapidi e grandi (minimo 44x44px per hit-target mobile) */}
+                <div className="flex items-center gap-1.5">
+                    <button
+                        onClick={() => setIsQRScanModalOpen(true)}
+                        className="p-3 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] active:scale-95 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
+                    >
+                        <QrCode size={18} />
+                    </button>
+                    <button
+                        onClick={() => setIsReprintModalOpen(true)}
+                        className="p-3 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] active:scale-95 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
+                    >
+                        <Printer size={18} />
+                    </button>
+                </div>
+            </div>
+
+            {/* ─── LISTA ARTICOLI (Touch area maggiorata) ─── */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2.5 no-scrollbar bg-[var(--bg-card)]">
+                {mergedCart.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)] opacity-25">
+                        <ShoppingCart size={48} />
+                        <p className="text-xs font-black uppercase tracking-widest mt-3">Il carrello è vuoto</p>
+                    </div>
+                ) : (
+                    mergedCart.map(item => (
+                        <div
+                            key={cartKey(item)}
+                            onClick={() => setSelectedItem(item)}
+                            className="p-4 rounded-xl border border-gray-300 dark:border-[var(--border)] bg-[var(--bg-card-2)] active:bg-[var(--border)] active:scale-[0.98] transition-all flex flex-col gap-2 select-none"
+                        >
+                            <div className="flex justify-between items-center gap-3">
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                    <span className="bg-[var(--accent)] text-white text-xs font-black min-w-[24px] h-6 px-1.5 flex items-center justify-center rounded-lg shrink-0">
+                                        {item.quantity}
+                                    </span>
+                                    <span className="font-bold text-sm uppercase leading-snug truncate">
+                                        {item.name}
+                                    </span>
+                                </div>
+                                <span className="font-black text-sm tabular-nums shrink-0">
+                                    {(item.price * item.quantity).toFixed(2)}€
+                                </span>
+                            </div>
+
+                            {item.note && (
+                                <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-3 py-1.5 self-start max-w-full">
+                                    <MessageSquare size={12} className="text-yellow-500 shrink-0" />
+                                    <span className="text-xs font-bold uppercase tracking-wide text-yellow-500 truncate">
+                                        {item.note}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    ))
+                )}
+            </div>
+
+            {/* ─── CONTROLLI DI CASSA INFERIORI (Thumb-Zone) ─── */}
+            <div className="border-t border-[var(--border)] bg-[var(--bg-card-2)] px-4 pt-3 pb-safe-bottom space-y-3 shadow-[0_-8px_24px_rgba(0,0,0,0.05)] shrink-0">
+
+                {/* Gestione Contanti & Input */}
+                <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2.5">
+                        <div className="bg-[var(--bg-card)] px-3 py-2 rounded-xl border border-[var(--border)] flex flex-col justify-center">
+                            <span className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-wider">Ricevuti</span>
+                            <input
+                                type="number"
+                                pattern="[0-9]*"
+                                inputMode="decimal"
+                                value={amountReceived}
+                                onChange={e => setAmountReceived(e.target.value)}
+                                placeholder="0.00"
+                                className="w-full bg-transparent outline-none font-black text-lg tabular-nums text-right text-[var(--text-main)]"
+                            />
+                        </div>
+                        <div className="bg-[var(--bg-card)] px-3 py-2 rounded-xl border border-[var(--border)] flex flex-col justify-center">
+                            <span className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-wider">Resto</span>
+                            <span className={`text-lg font-black tabular-nums text-right block ${change < 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                {change >= 0 ? change.toFixed(2) : '0.00'} €
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Scorciatoie Contanti veloci (Usa i pollici per fare tap su +5, +10, ecc) */}
+                    <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                        <button
+                            onClick={handleExactCash}
+                            disabled={cart.length === 0}
+                            className="px-3 h-8 bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)] font-black text-[11px] uppercase tracking-wider rounded-lg shrink-0 active:bg-[var(--accent)] active:text-white disabled:opacity-40"
+                        >
+                            Importo Esatto
+                        </button>
+                        {quickCashOptions.map(amount => (
+                            <button
+                                key={amount}
+                                onClick={() => handleQuickCash(amount)}
+                                disabled={cart.length === 0}
+                                className="px-3.5 h-8 bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)] font-black text-xs tabular-nums rounded-lg shrink-0 active:bg-[var(--accent)] active:text-white disabled:opacity-40"
+                            >
+                                €{amount}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Totale Economico */}
+                <div className="flex justify-between items-center px-1">
+                    <span className="text-xs font-black uppercase tracking-widest text-[var(--text-muted)]">Totale Comanda</span>
+                    <span className="text-3xl font-black tracking-tight text-[var(--accent)] tabular-nums">{total.toFixed(2)} €</span>
+                </div>
+
+                {/* ACTION BUTTON GIGANTE (Invia Ordine) */}
+                <button
+                    onClick={handleSendOrder}
+                    disabled={cart.length === 0 || !sessionActive || !wsConnected}
+                    className="w-full h-14 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:bg-[var(--bg-input)] disabled:text-[var(--text-muted)] text-white rounded-2xl font-black text-sm uppercase tracking-widest active:scale-[0.97] transition-all flex items-center justify-center gap-2.5 shadow-lg shadow-[var(--accent)]/20"
+                >
+                    <Check size={18} /> Invia Ordine
+                </button>
+
+                {/* Pulsanti ausiliari inferiori */}
+                <div className="grid grid-cols-2 gap-2">
+                    <button
+                        onClick={() => cart.length > 0 && setIsClearModalOpen(true)}
+                        disabled={cart.length === 0}
+                        className="h-10 border border-red-200 dark:border-red-900/30 text-red-500 active:bg-red-50 active:text-red-600 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all disabled:opacity-20 flex items-center justify-center gap-1.5"
+                    >
+                        <Trash2 size={12} /> Svuota
+                    </button>
+
+                    {children && (
+                        <div className="[&>*]:w-full [&>*]:h-10 [&>*]:rounded-xl [&>*]:font-black [&>*]:text-[10px] [&>*]:uppercase [&>*]:tracking-widest [&>*]:transition-all [&>*]:flex [&>*]:items-center [&>*]:justify-center [&>*]:gap-1.5 [&>*]:border [&>*]:border-[var(--border)] [&>*]:bg-[var(--bg-card)]">
+                            {children}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+        </div>
+    );
+};
+
+export default CartMobileView;

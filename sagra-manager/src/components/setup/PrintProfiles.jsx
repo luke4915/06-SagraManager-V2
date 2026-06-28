@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL;
 const TEMPLATES = ['Cliente', 'Cucina', 'Ritiro Bar', 'Ritiro Gastronomia'];

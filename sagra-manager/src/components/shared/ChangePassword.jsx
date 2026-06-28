@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useToast } from '../context/ToastContext';
-import { useAuth } from '../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL;
 

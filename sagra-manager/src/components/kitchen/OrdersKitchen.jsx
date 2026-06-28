@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Check, Camera, ChefHat } from 'lucide-react';
 import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
-import { useToast } from '../context/ToastContext';
-import { useAuth } from '../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL;
 const WS_URL = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:3000`;
@@ -188,7 +188,7 @@ const OrdersKitchen = () => {
         <button onClick={scanning ? stopScanner : startScanner}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest text-white transition-all ${scanning ? 'bg-red-500' : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)]'
             }`}>
-          <Camera size={16} /> {scanning ? 'Ferma' : 'Scansiona'}
+          <Camera size={16} /> {scanning ? 'Ferma' : 'Scansiona QR'}
         </button>
       </div>
 

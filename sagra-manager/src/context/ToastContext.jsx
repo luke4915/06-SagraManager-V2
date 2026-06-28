@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
-import Toast from '../components/Toast'; // <-- Verifica che il percorso sia corretto
+import Toast from '../components/shared/Toast';
 
 const ToastContext = createContext();
 
