@@ -39,7 +39,7 @@ async function printOrder(orderData, sessionName) {
     products.forEach(p => { destMap[p.id] = p.print_destination || 'both'; });
   }
 
-  const logoPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'logo_SagraManager_ESC_POS.png');
+  const logoPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'logo_5calzoni.png');
 
   for (const s of settings) {
     try {

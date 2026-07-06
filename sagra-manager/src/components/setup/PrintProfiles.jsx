@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL;
-const TEMPLATES = ['Cliente', 'Cucina', 'Ritiro Bar', 'Ritiro Gastronomia'];
-
+const BACKEND_TEMPLATES = ['Cliente', 'Associazione', 'Cucina', 'Ritiro Bar', 'Ritiro Gastronomia'];
 
 const PrintProfiles = () => {
   const { user } = useAuth();
@@ -11,6 +10,7 @@ const PrintProfiles = () => {
 
   const [settings, setSettings] = useState([]);
   const [usbPrinters, setUsbPrinters] = useState([]);
+  const [copyTypes, setCopyTypes] = useState([]);
   const [saving, setSaving] = useState(null);
   const [error, setError] = useState(null);
   const [modal, setModal] = useState(null); // null | 'new' | { id, name, label }
@@ -20,12 +20,14 @@ const PrintProfiles = () => {
 
   const fetchAll = async () => {
     try {
-      const [sRes, pRes] = await Promise.all([
+      const [sRes, pRes, ctRes] = await Promise.all([
         fetch(`${API_URL}/print-settings`, { credentials: 'include' }),
         fetch(`${API_URL}/printers`, { credentials: 'include' }),
+        fetch(`${API_URL}/print-settings/copy-types`, { credentials: 'include' }),
       ]);
       if (sRes.ok) setSettings(await sRes.json());
       if (pRes.ok) setUsbPrinters((await pRes.json()) || []);
+      if (ctRes.ok) setCopyTypes(await ctRes.json());
     } catch (err) {
       setError('Errore caricamento impostazioni');
     }
@@ -51,6 +53,42 @@ const PrintProfiles = () => {
     } finally {
       setSaving(null);
     }
+  };
+
+  const handleReorder = async (newSettings) => {
+    const originalSettings = [...settings];
+    // Aggiornamento ottimistico dell'UI per immediatezza visiva
+    setSettings(newSettings);
+    try {
+      const res = await fetch(`${API_URL}/print-settings/reorder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ order: newSettings.map(s => s.id) }),
+      });
+      if (!res.ok) throw new Error('Errore nel salvataggio del nuovo ordine');
+    } catch (err) {
+      setError(err.message);
+      setSettings(originalSettings); // Rollback in caso di errore di rete
+    }
+  };
+
+  const moveUp = (index) => {
+    if (index === 0) return;
+    const newSettings = [...settings];
+    const temp = newSettings[index];
+    newSettings[index] = newSettings[index - 1];
+    newSettings[index - 1] = temp;
+    handleReorder(newSettings);
+  };
+
+  const moveDown = (index) => {
+    if (index === settings.length - 1) return;
+    const newSettings = [...settings];
+    const temp = newSettings[index];
+    newSettings[index] = newSettings[index + 1];
+    newSettings[index + 1] = temp;
+    handleReorder(newSettings);
   };
 
   const createCopyType = async ({ name, label }) => {
@@ -92,13 +130,17 @@ const PrintProfiles = () => {
     } catch (err) { setError(err.message); }
   };
 
+  const availableTemplates = BACKEND_TEMPLATES.filter(
+    t => !copyTypes.some(ct => ct.name === t)
+  );
+
   return (
     <div className="mt-6 p-6 rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] shadow-sm">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
           Impostazioni di stampa
         </h2>
-        {isAdmin && (
+        {isAdmin && availableTemplates.length > 0 && (
           <button
             onClick={() => setModal('new')}
             className="px-3 py-1.5 text-xs rounded-xl bg-[var(--accent)] text-white font-bold hover:bg-[var(--accent-hover)] transition"
@@ -120,16 +162,37 @@ const PrintProfiles = () => {
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {settings.map(s => (
+          {settings.map((s, index) => (
             <div key={s.id} className="flex flex-col gap-3 p-4 rounded-2xl bg-[var(--bg-card-2)] border border-[var(--border)]">
 
               {/* Header */}
               <div className="flex justify-between items-center">
-                <div>
-                  <span className="font-black text-sm uppercase tracking-tight text-[var(--text-main)]">
-                    {s.copy_type_label}
-                  </span>
-                  <span className="ml-2 text-[10px] text-[var(--text-muted)]">({s.copy_type_name})</span>
+                <div className="flex items-center gap-2">
+                  {/* Pulsanti Su/Giù per l'ordinamento se admin */}
+                  {isAdmin && (
+                    <div className="flex flex-col gap-0.5 mr-1 bg-[var(--bg-card)] p-1 rounded-lg border border-[var(--border)]">
+                      <button
+                        disabled={index === 0}
+                        onClick={() => moveUp(index)}
+                        className="text-[10px] px-1 font-bold text-[var(--text-main)] hover:bg-[var(--bg-card-2)] rounded disabled:opacity-20 disabled:pointer-events-none"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        disabled={index === settings.length - 1}
+                        onClick={() => moveDown(index)}
+                        className="text-[10px] px-1 font-bold text-[var(--text-main)] hover:bg-[var(--bg-card-2)] rounded disabled:opacity-20 disabled:pointer-events-none"
+                      >
+                        ▼
+                      </button>
+                    </div>
+                  )}
+                  <div>
+                    <span className="font-black text-sm uppercase tracking-tight text-[var(--text-main)]">
+                      {s.copy_type_label}
+                    </span>
+                    <span className="ml-2 text-[10px] text-[var(--text-muted)]">({s.copy_type_name})</span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-3">
                   {isAdmin && (
@@ -204,6 +267,7 @@ const PrintProfiles = () => {
       {modal && (
         <CopyTypeModal
           initial={modal === 'new' ? null : modal}
+          templatesOptions={modal === 'new' ? availableTemplates : BACKEND_TEMPLATES}
           onSave={modal === 'new' ? createCopyType : editCopyType}
           onClose={() => setModal(null)}
         />
@@ -228,7 +292,7 @@ const PrintProfiles = () => {
   );
 };
 
-const CopyTypeModal = ({ initial, onSave, onClose }) => {
+const CopyTypeModal = ({ initial, templatesOptions, onSave, onClose }) => {
   const [name, setName] = useState(initial?.name || '');
   const [label, setLabel] = useState(initial?.label || '');
   return (
@@ -246,13 +310,13 @@ const CopyTypeModal = ({ initial, onSave, onClose }) => {
               disabled={!!initial}
             >
               <option value="">Seleziona template...</option>
-              {TEMPLATES.map(t => <option key={t} value={t}>{t}</option>)}
+              {templatesOptions.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Etichetta UI <span className="font-normal opacity-60">(es. Copia Cucina)</span></label>
+            <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Etichetta UI <span className="font-normal opacity-60">(es. Copia Associazione)</span></label>
             <input className="w-full px-3 py-2 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]"
-              value={label} onChange={e => setLabel(e.target.value)} placeholder="Copia Cucina" />
+              value={label} onChange={e => setLabel(e.target.value)} placeholder="Copia Associazione" />
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">

@@ -82,20 +82,48 @@ router.delete('/copy-types/:id', authenticate, authorizeAdmin, async (req, res) 
 // ─── PRINT SETTINGS ───────────────────────────────────────────
 
 // GET /api/print-settings — tutti gli utenti autenticati
-// Ritorna la configurazione completa (join con copy_types)
+// Ritorna la configurazione completa (join con copy_types) ordinata per sort_order
 router.get('/', authenticate, async (req, res) => {
   try {
     const { rows } = await pool.query(`
       SELECT ps.id, ps.copy_type_id, ct.name AS copy_type_name, ct.label AS copy_type_label,
-             ps.printer_type, ps.printer_address, ps.enabled
+             ps.printer_type, ps.printer_address, ps.enabled, ps.sort_order
       FROM print_settings ps
       JOIN copy_types ct ON ct.id = ps.copy_type_id
-      ORDER BY ct.id
+      ORDER BY ps.sort_order ASC, ct.id ASC
     `);
     res.json(rows);
   } catch (err) {
     logger.error({ err }, 'Errore GET /print-settings:')
     res.status(500).json({ error: 'Errore server' });
+  }
+});
+
+// POST /api/print-settings/reorder — solo admin
+// Aggiorna l'ordine di stampa globale delle copie in blocco
+router.post('/reorder', authenticate, authorizeAdmin, async (req, res) => {
+  const { order } = req.body; // Array di id ordinati, es: [4, 1, 2, 5, 3]
+  if (!Array.isArray(order)) {
+    return res.status(400).json({ error: 'Formato ordine non valido' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (let i = 0; i < order.length; i++) {
+      await client.query(
+        'UPDATE print_settings SET sort_order = $1 WHERE id = $2',
+        [i + 1, order[i]]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ message: 'Ordinamento completato con successo' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    logger.error({ err }, 'Errore POST /print-settings/reorder:');
+    res.status(500).json({ error: 'Errore server durante il riordinamento' });
+  } finally {
+    client.release();
   }
 });
 
