@@ -6,7 +6,6 @@ import { pool } from '../db.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { printESCPosNetwork } from '../utils/receiptTemplates.js';
 import logger from '../logger.js';
-// NUOVO IMPORT
 import { logAudit } from '../utils/auditLogger.js';
 
 const router = express.Router();
@@ -63,7 +62,7 @@ async function printOrder(orderData, sessionName) {
 
 export default function (broadcast) {
 
-  // GET /orders (Rimane invariato)
+  // GET /orders (Modificata solo per iniettare le categorie reali a runtime)
   router.get('/', authenticate, async (req, res) => {
     try {
       let query = 'SELECT * FROM orders ORDER BY created_at DESC';
@@ -78,7 +77,23 @@ export default function (broadcast) {
         params = end_time ? [start_time, end_time] : [start_time];
       }
       const { rows } = await pool.query(query, params);
-      res.json(rows.map(o => ({ ...o, items: safeParseJSON(o.items).map(i => ({ ...i, note: i.note || '' })) })));
+
+      // 🚀 FIX CRITICO: Recuperiamo la mappatura attuale dei prodotti dal DB per associare le categorie
+      const { rows: dbProducts } = await pool.query('SELECT id, category FROM products');
+      const categoryMap = Object.fromEntries(dbProducts.map(p => [p.id, p.category || 'Altro']));
+
+      // Rispediamo i dati mappandoli in modo che ogni item abbia la sua categoria reale
+      const mappedRows = rows.map(o => {
+        const parsedItems = safeParseJSON(o.items).map(i => ({
+          ...i,
+          note: i.note || '',
+          // Se l'item non ha la categoria nel JSON, la prendiamo dalla mappa aggiornata tramite l'ID prodotto
+          category: i.category || categoryMap[i.id] || 'Altro'
+        }));
+        return { ...o, items: parsedItems };
+      });
+
+      res.json(mappedRows);
     } catch (err) {
       logger.error({ err }, 'Errore GET /api/orders:')
       res.status(500).json({ error: 'Errore nel recupero degli ordini' });
@@ -106,9 +121,13 @@ export default function (broadcast) {
     }
 
     const verifiedItems = items.map(i => ({
-      id: i.id, name: i.name, quantity: i.quantity,
-      price: priceMap[i.id], note: i.note || '',
-      category: i.category || '', print_destination: i.print_destination || 'both',
+      id: i.id,
+      name: i.name,
+      quantity: i.quantity,
+      price: priceMap[i.id],
+      note: i.note || '',
+      category: i.category,
+      print_destination: i.print_destination || 'both',
     }));
     const verifiedTotal = verifiedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
 

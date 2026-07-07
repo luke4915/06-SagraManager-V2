@@ -1,24 +1,20 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import bwipjs from "bwip-js";
 import { EposXmlPrinter } from "./eposXmlPrinter.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TMP_DIR = path.join(__dirname, "..", "tmp");
+let tmpDirEnsured = false; // evita di rifare la syscall mkdirSync ad ogni singola stampa
 
 const LINE_WIDTH = 42;
 const DIVIDER = "=".repeat(LINE_WIDTH);
 const DIVIDER_THIN = "-".repeat(LINE_WIDTH);
 const HEADER_LOGO_WIDTH = 512;
 
-const ASSOCIAZIONE_NOME = "APS MARIA SS DI TROCCHIO";
+const ASSOCIAZIONE_NOME = "ASSOCIAZIONE MARIA SS DI TROCCHIO APS";
 const ASSOCIAZIONE_CF = "C.F. 90051130608";
-
-async function generateQRImage(code) {
-  return await bwipjs.toBuffer({ bcid: "qrcode", text: code, scale: 3, eclevel: "L" });
-}
 
 function loadLogoBuffer(logoPath) {
   if (!logoPath || !fs.existsSync(logoPath)) return null;
@@ -100,20 +96,14 @@ async function renderHeader(printer, { title, orderId, timestamp, logoPath, show
     }
   }
 
-  // dettagli associazione
-  printer.align("CT").style("B")
-    .size(2, 2)
-    .text(ASSOCIAZIONE_NOME)
-    .size(1, 1);
+  printer.align("CT").style("B").text(ASSOCIAZIONE_NOME);
   printer.align("CT").style("NORMAL").text(ASSOCIAZIONE_CF);
   printer.align("CT").text(DIVIDER_THIN);
 
-  // intestazione copia
   printer.align("CT").style("B").text(title).style("NORMAL");
-  if (subtitle) {
+  if (subtitle)
     printer.align("CT").text(DIVIDER_THIN);
-    printer.align("CT").style("B").text(subtitle).style("NORMAL");
-  }
+  printer.align("CT").style("B").text(subtitle).style("NORMAL");
   printer.align("CT").text(DIVIDER_THIN);
 
   printPickupBanner(printer, pickupStatus);
@@ -134,12 +124,12 @@ function renderItems(printer, items, layoutType = "standard") {
     printer.align("LT").text(rowThreeColumns("OMAGGIO", "QTA", "CONTRIB."));
     printer.align("CT").text(DIVIDER_THIN);
 
+    const maxTextWidth = LINE_WIDTH - 8 - 4 - 2; // costante, invariante per ogni item: calcolata una sola volta
     items.forEach((item) => {
       const qty = String(item.quantity).trim();
       const priceUnit = parseFloat(item.price || 0);
       const rowTotal = `€ ${(priceUnit * item.quantity).toFixed(2)}`;
 
-      const maxTextWidth = LINE_WIDTH - 8 - 4 - 2;
       const lines = wrapText(item.name.toUpperCase(), maxTextWidth);
 
       lines.forEach((line, i) => {
@@ -156,12 +146,14 @@ function renderItems(printer, items, layoutType = "standard") {
     printer.align("LT").text(rowLR(headerText, "QTA"));
     printer.align("CT").text(DIVIDER_THIN);
 
+    const maxTextWidth = LINE_WIDTH - 4; // costante, invariante per ogni item: calcolata una sola volta
+    const isAssociation = layoutType === "association"; // valutato una sola volta invece che per ogni item
     items.forEach((item) => {
       const qty = String(item.quantity).trim();
-      const lines = wrapText(item.name.toUpperCase(), LINE_WIDTH - 4);
+      const lines = wrapText(item.name.toUpperCase(), maxTextWidth);
       lines.forEach((line, i) => {
         if (i === 0) {
-          if (layoutType === "association") {
+          if (isAssociation) {
             printer.align("LT").text(rowLR(line, qty));
           } else {
             printer.align("LT").style("B").text(rowLR(line, qty)).style("NORMAL");
@@ -205,13 +197,11 @@ async function renderFooter(printer, { total, QRcode, showTotal = false, showQR 
   if (QRcode) {
     if (showQR) {
       printer.align("CT").text("Mostra questo QR Code al ritiro:");
-      try {
-        const qrBuf = await generateQRImage(QRcode);
-        await printer.image(qrBuf, { align: "center", width: 240 });
-      } catch (err) {
-        console.error("Errore QR:", err.message);
-        printer.align("CT").text(QRcode);
-      }
+      printer.feed(1);
+      printer.align("CT");
+      // Utilizzo del metodo nativo per la generazione del QR Code via hardware Epson ePOS XML
+      printer.qrcode(QRcode, { model: "model2", level: "level_l", width: 3 });
+      printer.feed(1);
     } else {
       printer.align("CT").text(`ID RITIRO: ${QRcode}`);
     }
@@ -281,7 +271,10 @@ export async function printESCPosNetwork(setting, orderData, eventName, logoPath
     if (!templateFunc) return console.warn(`Nessun template per: "${setting.copy_type}"`);
   } else return;
 
-  fs.mkdirSync(TMP_DIR, { recursive: true });
+  if (!tmpDirEnsured) {
+    fs.mkdirSync(TMP_DIR, { recursive: true });
+    tmpDirEnsured = true;
+  }
 
   let host = hostDefault, port = portDefault;
   const addr = setting?.printer_address || "";
@@ -296,9 +289,13 @@ export async function printESCPosNetwork(setting, orderData, eventName, logoPath
   const showTimestamp = setting?.show_timestamp !== undefined ? setting.show_timestamp : false;
 
   const printer = new EposXmlPrinter();
+  console.time("render");
   await templateFunc(printer, orderData, logoPath, showLogo, showTimestamp);
+  console.timeEnd("render");
   if (!printer.elements.length) return;
 
+  console.time("send");
   await printer.send(host, { devid, port });
+  console.timeEnd("send")
   console.log(`[STAMPA] Completata su: ${host}:${port} (devid=${devid})`);
 }

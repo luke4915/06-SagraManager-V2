@@ -137,6 +137,17 @@ export class EposXmlPrinter {
         return this;
     }
 
+    qrcode(data, { model = "model2", level = "level_l", width = 3 } = {}) {
+        const attrs = [
+            `type="qrcode"`,
+            `model="${model}"`,
+            `level="${level}"`,
+            `width="${Math.max(1, Math.min(8, width))}"`
+        ];
+        this.elements.push(`<barcode ${attrs.join(" ")}>${escapeXml(data)}</barcode>`);
+        return this;
+    }
+
     close() { return this; }
 
     buildXml() {
