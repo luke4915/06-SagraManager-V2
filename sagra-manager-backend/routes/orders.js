@@ -167,7 +167,7 @@ export default function (broadcast) {
       id: i.id,
       name: i.name,
       quantity: i.quantity,
-      price: priceMap[i.id],
+      price: (i.type === 'gift') ? 0 : priceMap[i.id],
       note: i.note || '',
       category: i.category,
       print_destination: i.print_destination || 'both',
@@ -188,9 +188,11 @@ export default function (broadcast) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      // Determina order_type: se tutti gli item sono gift → gift, altrimenti sale
+      const order_type = verifiedItems.every(i => i.price === 0) ? 'gift' : 'sale';
       const { rows } = await client.query(
-        'INSERT INTO orders (items, total, status, created_by) VALUES ($1,$2,$3,$4) RETURNING id, created_at',
-        [JSON.stringify(verifiedItems), verifiedTotal, status || 'pending', req.user.id]
+        'INSERT INTO orders (items, total, status, created_by, order_type) VALUES ($1,$2,$3,$4,$5) RETURNING id, created_at',
+        [JSON.stringify(verifiedItems), verifiedTotal, status || 'pending', req.user.id, order_type]
       );
       const orderId = rows[0].id;
       const timestamp = rows[0].created_at;

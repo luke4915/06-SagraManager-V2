@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { Download, X, CheckSquare, Square } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -37,11 +37,13 @@ const empty = {
   topProdotti: [], andamentoFatturato: [],
   tempiCompletamento: [], tempoMedioCompletamento: 0,
   confrontoSerate: [],
+  unrealizedGiftRevenue: 0, topGiftProducts: []
 };
 
 const Statistics = () => {
   const [orders, setOrders] = useState([]);
   const [sessions, setSessions] = useState([]);
+  const [products, setProducts] = useState([]);
   const [selectedSessionIds, setSelectedSessionIds] = useState([]);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -50,14 +52,22 @@ const Statistics = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [resO, resS] = await Promise.all([
+        const [resO, resS, resP] = await Promise.all([
           fetch(`${API_URL}/orders`, { credentials: 'include' }),
           fetch(`${API_URL}/sessions`, { credentials: 'include' }),
+          fetch(`${API_URL}/products`, { credentials: 'include' }),
         ]);
-        if (!resO.ok || !resS.ok) throw new Error('Errore nel caricamento dati');
-        const [ordersData, sessionsData] = await Promise.all([resO.json(), resS.json()]);
+        if (!resO.ok || !resS.ok || !resP.ok) throw new Error('Errore nel caricamento dati');
+
+        const [ordersData, sessionsData, productsData] = await Promise.all([
+          resO.json(),
+          resS.json(),
+          resP.json(),
+        ]);
+
         setOrders(Array.isArray(ordersData) ? ordersData : []);
         setSessions(Array.isArray(sessionsData) ? sessionsData : []);
+        setProducts(Array.isArray(productsData) ? productsData : []);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -73,6 +83,62 @@ const Statistics = () => {
       prev.includes(sid) ? prev.filter(s => s !== sid) : [...prev, sid]
     );
   };
+
+  const [h2hProduct, setH2hProduct] = useState('');
+  const [h2hSessionA, setH2hSessionA] = useState('');
+  const [h2hSessionB, setH2hSessionB] = useState('');
+
+  const getOrdersBySession = (sessionId) => {
+    const s = sessions.find(x => String(x.id) === String(sessionId));
+    if (!s) return [];
+    return orders.filter(o => o.status === 'completed' &&
+      new Date(o.created_at) >= new Date(s.start_time) &&
+      new Date(o.created_at) <= (s.end_time ? new Date(s.end_time) : new Date()));
+  };
+
+  const availableProducts = useMemo(() => {
+    // Finché non sono state scelte entrambe le serate, mostra tutti i prodotti disponibili
+    if (!h2hSessionA || !h2hSessionB) {
+      return [...new Set(orders.flatMap(o => o.items?.map(i => i.name).filter(Boolean) || []))].sort();
+    }
+    // Con entrambe le serate selezionate, mostra solo i prodotti venduti in ENTRAMBE (intersezione)
+    const productsA = new Set(
+      getOrdersBySession(h2hSessionA).flatMap(o => o.items?.map(i => i.name).filter(Boolean) || [])
+    );
+    const productsB = new Set(
+      getOrdersBySession(h2hSessionB).flatMap(o => o.items?.map(i => i.name).filter(Boolean) || [])
+    );
+    return [...productsA].filter(p => productsB.has(p)).sort();
+  }, [orders, sessions, h2hSessionA, h2hSessionB]);
+
+  useEffect(() => {
+    if (h2hProduct && !availableProducts.includes(h2hProduct)) {
+      setH2hProduct('');
+    }
+  }, [availableProducts, h2hProduct]);
+
+  const h2hData = useMemo(() => {
+    if (!h2hProduct || !h2hSessionA || !h2hSessionB) return null;
+    const calculate = (sessionId) => {
+      let qty = 0, revenue = 0;
+      getOrdersBySession(sessionId).forEach(o => o.items?.forEach(i => {
+        if (i.name === h2hProduct) {
+          qty += Number(i.quantity || 0);
+          revenue += Number(i.price || 0) * Number(i.quantity || 0);
+        }
+      }));
+      return { qty, revenue: parseFloat(revenue.toFixed(2)) };
+    };
+    const a = calculate(h2hSessionA);
+    const b = calculate(h2hSessionB);
+    return [
+      { metric: 'Quantità venduta', A: a.qty, B: b.qty },
+      { metric: 'Incasso (€)', A: a.revenue, B: b.revenue },
+    ];
+  }, [h2hProduct, h2hSessionA, h2hSessionB, orders, sessions]);
+
+  const sessionAName = sessions.find(s => String(s.id) === String(h2hSessionA))?.name || 'Serata A';
+  const sessionBName = sessions.find(s => String(s.id) === String(h2hSessionB))?.name || 'Serata B';
 
   const stats = useMemo(() => {
     if (!orders.length) return empty;
@@ -91,6 +157,11 @@ const Statistics = () => {
     const importoMedio = totaleSerata / filtered.length;
 
     // Prodotti + categorie
+    const priceMap = {};
+    products.forEach(p => { priceMap[p.id] = Number(p.price || 0); });
+    let unrealizedGiftRevenue = 0;
+    const giftRevenueByProduct = {};
+
     const productCount = {};
     const categoryIncome = {};
     filtered.forEach(o => o.items?.forEach(i => {
@@ -98,12 +169,25 @@ const Statistics = () => {
       productCount[i.name] = (productCount[i.name] || 0) + Number(i.quantity || 0);
       const cat = i.category || 'Altro';
       categoryIncome[cat] = (categoryIncome[cat] || 0) + Number(i.price || 0) * Number(i.quantity || 0);
+
+      // Item sold at 0€ but with a catalog price > 0 -> it's a gift/comp
+      const actualPrice = Number(i.price || 0);
+      const catalogPrice = priceMap[i.id] ?? actualPrice;
+      if (actualPrice === 0 && catalogPrice > 0) {
+        const missedRevenue = catalogPrice * Number(i.quantity || 0);
+        unrealizedGiftRevenue += missedRevenue;
+        giftRevenueByProduct[i.name] = (giftRevenueByProduct[i.name] || 0) + missedRevenue;
+      }
     }));
+
+    const topGiftProducts = Object.entries(giftRevenueByProduct)
+      .map(([product, missedRevenue]) => ({ product, missedRevenue: parseFloat(missedRevenue.toFixed(2)) }))
+      .sort((a, b) => b.missedRevenue - a.missedRevenue).slice(0, 10);
 
     const prodottoPiuVenduto = Object.entries(productCount).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
     const topProdotti = Object.entries(productCount)
       .map(([name, count]) => ({ prodotto: name, count }))
-      .sort((a, b) => b.count - a.count).slice(0, 10);
+      .sort((a, b) => b.count - a.count).slice(0, 12);
 
     const incassoPerCategoria = Object.entries(categoryIncome)
       .map(([categoria, totale]) => ({ categoria, totale: parseFloat(totale.toFixed(2)) }))
@@ -168,8 +252,10 @@ const Statistics = () => {
       ordiniPerFasciaOraria, prezzoMedioPerFasciaOraria,
       topProdotti, andamentoFatturato,
       tempiCompletamento, tempoMedioCompletamento, confrontoSerate,
+      unrealizedGiftRevenue: parseFloat(unrealizedGiftRevenue.toFixed(2)),
+      topGiftProducts
     };
-  }, [orders, sessions, selectedSessionIds]);
+  }, [orders, sessions, selectedSessionIds, products]);
 
   const handleExportCSV = async (session) => {
     try {
@@ -192,6 +278,8 @@ const Statistics = () => {
 
   // Filtra le ore con dati per grafici più puliti
   const activeHours = (data, key) => data.filter(d => d[key] > 0);
+  // La mezzanotte (00:00) è la fine della serata precedente, non l'inizio: la spostiamo in fondo
+  const reorderHours = (data) => [...data.slice(1), data[0]];
 
   if (loading) return (
     <div className="flex items-center justify-center h-64 text-[var(--text-muted)]">
@@ -232,11 +320,10 @@ const Statistics = () => {
               const selected = selectedSessionIds.includes(String(s.id));
               return (
                 <button key={s.id} onClick={() => toggleSession(s.id)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold transition-all ${
-                    selected
-                      ? 'bg-[var(--accent)] border-[var(--accent)] text-white'
-                      : 'bg-[var(--bg-card-2)] border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)]/50'
-                  }`}>
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold transition-all ${selected
+                    ? 'bg-[var(--accent)] border-[var(--accent)] text-white'
+                    : 'bg-[var(--bg-card-2)] border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)]/50'
+                    }`}>
                   {selected ? <CheckSquare size={13} /> : <Square size={13} />}
                   {s.name || new Date(s.start_time).toLocaleDateString('it-IT')}
                   {!s.end_time && <span className="text-[9px] opacity-70">(in corso)</span>}
@@ -259,6 +346,7 @@ const Statistics = () => {
         <StatCard label="Importo medio" value={formatEuro(stats.importoMedio)} />
         <StatCard label="Totale ordini" value={stats.numeroTotaleOrdini} />
         <StatCard label="Top prodotto" value={stats.prodottoPiuVenduto || '—'} />
+        <StatCard label="Guadagno non realizzato (omaggi)" value={formatEuro(stats.unrealizedGiftRevenue)} sub="Prodotti regalati a prezzo di listino" />
       </div>
 
       {stats.numeroTotaleOrdini === 0 ? (
@@ -284,7 +372,7 @@ const Statistics = () => {
           {/* Ordini per fascia oraria */}
           <ChartCard title="Ordini per fascia oraria">
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={activeHours(stats.ordiniPerFasciaOraria, 'count')}>
+              <BarChart data={activeHours(reorderHours(stats.ordiniPerFasciaOraria), 'count')}>
                 <XAxis dataKey="ora" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip contentStyle={tooltipStyle} />
@@ -295,20 +383,60 @@ const Statistics = () => {
 
           {/* Top 10 prodotti */}
           <ChartCard title="Top 10 prodotti">
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={450}>
               <BarChart data={stats.topProdotti} layout="vertical">
                 <XAxis type="number" tick={{ fontSize: 11 }} />
-                <YAxis type="category" dataKey="prodotto" tick={{ fontSize: 11 }} width={120} />
+                <YAxis type="category" dataKey="prodotto" tick={{ fontSize: 11 }} width={180} />
                 <Tooltip contentStyle={tooltipStyle} />
                 <Bar dataKey="count" fill="var(--accent)" name="Quantità" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
 
+          {/* Confronto prodotto tra serate (head to head) */}
+          {sessions.length > 1 && (
+            <ChartCard title="Confronto prodotto tra serate (head to head)">
+              <div className="flex flex-wrap gap-2 mb-4">
+                <select value={h2hSessionA} onChange={e => setH2hSessionA(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-[var(--border)] bg-[var(--bg-card-2)] text-xs font-bold text-[var(--text-main)]">
+                  <option value="">Serata A…</option>
+                  {sessions.map(s => <option key={s.id} value={s.id}>{s.name || new Date(s.start_time).toLocaleDateString('it-IT')}</option>)}
+                </select>
+                <select value={h2hSessionB} onChange={e => setH2hSessionB(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-[var(--border)] bg-[var(--bg-card-2)] text-xs font-bold text-[var(--text-main)]">
+                  <option value="">Serata B…</option>
+                  {sessions.map(s => <option key={s.id} value={s.id}>{s.name || new Date(s.start_time).toLocaleDateString('it-IT')}</option>)}
+                </select>
+                <select value={h2hProduct} onChange={e => setH2hProduct(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-[var(--border)] bg-[var(--bg-card-2)] text-xs font-bold text-[var(--text-main)]">
+                  <option value="">Seleziona prodotto…</option>
+                  {availableProducts.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+
+              {h2hData ? (
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={h2hData}>
+                    <XAxis dataKey="metric" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Bar dataKey="A" name={sessionAName} fill="var(--accent)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="B" name={sessionBName} fill="var(--text-muted)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-xs text-[var(--text-muted)] text-center py-8">
+                  Seleziona un prodotto e due serate da confrontare.
+                </p>
+              )}
+            </ChartCard>
+          )}
+
           {/* Prezzo medio per fascia oraria */}
           <ChartCard title="Prezzo medio ordine per fascia oraria">
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={activeHours(stats.prezzoMedioPerFasciaOraria, 'prezzoMedio')}>
+              <BarChart data={activeHours(reorderHours(stats.prezzoMedioPerFasciaOraria), 'prezzoMedio')}>
                 <XAxis dataKey="ora" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip contentStyle={tooltipStyle} formatter={(v) => formatEuro(v)} />
@@ -320,7 +448,7 @@ const Statistics = () => {
           {/* Andamento fatturato cumulativo */}
           <ChartCard title="Andamento fatturato cumulativo">
             <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={activeHours(stats.andamentoFatturato, 'totale')}>
+              <LineChart data={activeHours(reorderHours(stats.andamentoFatturato), 'totale')}>
                 <XAxis dataKey="ora" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip contentStyle={tooltipStyle} formatter={(v) => formatEuro(v)} />
@@ -328,6 +456,20 @@ const Statistics = () => {
               </LineChart>
             </ResponsiveContainer>
           </ChartCard>
+
+          {stats.topGiftProducts.length > 0 && (
+            <ChartCard title="Mancato incasso per omaggi (per prodotto)">
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={stats.topGiftProducts} layout="vertical">
+                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <YAxis type="category" dataKey="product" tick={{ fontSize: 11 }} width={120} />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(v) => formatEuro(v)} />
+                  <Bar dataKey="missedRevenue" fill="var(--accent)" name="Mancato incasso" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          )}
+
 
           {/* Tempo medio completamento */}
           <ChartCard title={`Tempo medio completamento ordini — ${formatMin(stats.tempoMedioCompletamento)}`}>
@@ -338,7 +480,7 @@ const Statistics = () => {
               </p>
             ) : (
               <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={activeHours(stats.tempiCompletamento, 'media')}>
+                <BarChart data={activeHours(reorderHours(stats.tempiCompletamento), 'media')}>
                   <XAxis dataKey="ora" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v) => formatMin(v)} />

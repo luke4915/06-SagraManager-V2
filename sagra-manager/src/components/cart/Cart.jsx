@@ -383,7 +383,7 @@ const ClearCartModal = ({ onConfirm, onClose }) => (
 );
 
 // ─── Componente Cart Principale (Container Logico) ────────────────
-const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem, clearCart, sendOrder, sessionActive, children, wsConnected, onClose }) => {
+const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem, clearCart, sendOrder, sessionActive, children, wsConnected, onClose, updateItemType, toggleOrderType }) => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [amountReceived, setAmountReceived] = useState('');
   const [change, setChange] = useState(0);
@@ -452,6 +452,8 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
   const mergedCart = mergeCartItems(cart);
   const currentSelected = selectedItem ? mergedCart.find(i => i.id === selectedItem.id && (i.note || '') === (selectedItem.note || '')) : null;
 
+  const isAllGift = cart.length > 0 && cart.every(i => i.type === 'gift');
+
   // Bundle unificato delle props da distribuire ai sotto-render visivi
   const sharedViewProps = {
     cart,
@@ -469,7 +471,9 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
     setIsReprintModalOpen,
     setIsClearModalOpen,
     children,
-    onClose
+    onClose,
+    toggleOrderType,
+    isAllGift
   };
 
   return (

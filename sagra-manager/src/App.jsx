@@ -202,6 +202,13 @@ const App = () => {
     ));
   };
 
+  const toggleOrderType = () => {
+    setCart(prev => {
+      const allGift = prev.every(i => i.type === 'gift');
+      return prev.map(i => ({ ...i, type: allGift ? 'sale' : 'gift' }));
+    });
+  };
+
   const clearCart = (isManual = false) => { if (isManual) playSagraSound('empty_cart_sound'); setCart([]); };
   const removeFromCart = (product) => setCart(prev => prev.filter(i => !(i.id === product.id && (i.note || '') === (product.note || ''))));
   const removeLastItem = (product) => setCart(prev => prev.map(i => i.id === product.id && (i.note || '') === (product.note || '') ? { ...i, quantity: i.quantity - 1 } : i).filter(i => i.quantity > 0));
@@ -212,7 +219,7 @@ const App = () => {
     try {
       const res = await fetch(`${API_URL}/orders`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ items: cart.map(i => ({ id: i.id, name: i.name, quantity: i.quantity, price: i.price, note: i.note || '', print_destination: i.print_destination || 'both' })), status: orderMode === 'simple' ? 'completed' : 'pending' })
+        body: JSON.stringify({ items: cart.map(i => ({ id: i.id, name: i.name, quantity: i.quantity, price: i.price, note: i.note || '', print_destination: i.print_destination || 'both', type: i.type || 'sale' })), status: orderMode === 'simple' ? 'completed' : 'pending' })
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Errore server'); }
       playSagraSound('order_confirm_sound');
@@ -272,7 +279,7 @@ const App = () => {
   const cartProps = {
     cart, setCart, total, addToCart, removeFromCart,
     removeLastItem, clearCart, sendOrder,
-    sessionActive, wsConnected, updateItemType
+    sessionActive, wsConnected, updateItemType, toggleOrderType
   };
 
   return (

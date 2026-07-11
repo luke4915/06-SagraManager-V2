@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingCart, Check, Printer, MessageSquare } from 'lucide-react';
+import { ShoppingCart, Check, Printer, MessageSquare, Gift } from 'lucide-react';
 
 const CartDesktopView = ({
     // Props passate dal Container padre
@@ -17,6 +17,8 @@ const CartDesktopView = ({
     setIsQRScanModalOpen,
     setIsReprintModalOpen,
     setIsClearModalOpen,
+    toggleOrderType,
+    isAllGift,
     children
 }) => {
     return (
@@ -31,6 +33,12 @@ const CartDesktopView = ({
                     </span>
                 </div>
                 <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => toggleOrderType(v => !v)}
+                        title={isAllGift ? "Disattiva omaggio" : "Segna come omaggio (totale €0)"}
+                        className={`p-2 rounded-xl border transition-all ${isAllGift ? 'bg-purple-500 border-purple-500 text-white' : 'border-[var(--border)] text-[var(--text-muted)] hover:text-purple-500 hover:border-purple-500/50'}`}>
+                        <Gift size={16} />
+                    </button>
                     <button onClick={() => setIsQRScanModalOpen(true)} title="Importa ordine da QR"
                         className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]/50 transition-all">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
@@ -89,8 +97,18 @@ const CartDesktopView = ({
                 </div>
 
                 <div className="flex justify-between items-center">
-                    <span className="text-sm font-black text-[var(--text-main)] uppercase tracking-widest">Totale</span>
-                    <span className="text-2xl font-black tracking-tighter text-[var(--text-main)] tabular-nums">{total.toFixed(2)} €</span>
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm font-black text-[var(--text-main)] uppercase tracking-widest">Totale</span>
+                        {isAllGift && <span className="text-[9px] font-black uppercase tracking-widest bg-purple-500/10 text-purple-500 border border-purple-500/30 px-2 py-0.5 rounded-full">Omaggio</span>}
+                    </div>
+                    {isAllGift ? (
+                        <div className="flex items-baseline gap-2">
+                            <span className="text-base font-black line-through text-[var(--text-muted)] tabular-nums">{total.toFixed(2)} €</span>
+                            <span className="text-2xl font-black tracking-tighter text-purple-500 tabular-nums">0.00 €</span>
+                        </div>
+                    ) : (
+                        <span className="text-2xl font-black tracking-tighter text-[var(--text-main)] tabular-nums">{total.toFixed(2)} €</span>
+                    )}
                 </div>
 
                 <button onClick={handleSendOrder}
