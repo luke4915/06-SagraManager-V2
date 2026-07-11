@@ -27,7 +27,7 @@ const ProductConfig = ({ products, setProducts }) => {
 
   const openEditForm = (p) => {
     setEditingProduct(p);
-    setFormData({ name: p.name || '', price: p.price ?? 0, category: p.category || '', color: p.color || '#3b82f6', visible: p.visible ?? true, print_destination: p.print_destination || 'both' });
+    setFormData({ name: p.name || '', price: p.price ?? 0, category: p.category || '', color: p.color || '#3b82f6', visible: p.visible ?? true, print_destination: p.print_destination || 'both', stock_enabled: p.stock_enabled ?? false, stock: p.stock ?? '' });
     setShowForm(true);
   };
 
@@ -114,6 +114,24 @@ const ProductConfig = ({ products, setProducts }) => {
       if (!res.ok) throw new Error((await res.json()).error || "Errore");
 
       const updatedProduct = await res.json();
+
+      // Aggiorna stock separatamente se abilitato
+      if (formData.stock_enabled !== undefined) {
+        const stockRes = await fetch(`${API_URL}/products/${updatedProduct.id}/stock`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            stock: formData.stock !== '' ? parseInt(formData.stock) : null,
+            stock_enabled: !!formData.stock_enabled
+          })
+        });
+        if (stockRes.ok) {
+          const stockData = await stockRes.json();
+          Object.assign(updatedProduct, { stock: stockData.stock, stock_enabled: stockData.stock_enabled });
+        }
+      }
+
       const parsedProduct = { ...updatedProduct, price: parseFloat(updatedProduct.price) };
 
       if (editingProduct) {
@@ -271,31 +289,34 @@ const ProductConfig = ({ products, setProducts }) => {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className={`bg-[var(--bg-card)] rounded-3xl shadow-2xl p-8 w-full max-w-md border border-[var(--border)] transform transition-all duration-300 ${popupVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-black tracking-tighter text-[var(--text-main)]">{editingProduct ? 'MODIFICA' : 'NUOVO PRODOTTO'}</h3>
-              <button onClick={() => setShowForm(false)} className="p-2 rounded-xl hover:bg-[var(--bg-card-2)] transition-colors"><X size={18} className="text-gray-500" /></button>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className={`bg-[var(--bg-card)] rounded-2xl shadow-2xl w-full max-w-2xl border border-[var(--border)] transform transition-all duration-300 ${popupVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} overflow-hidden`}>
+            <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--border)]">
+              <h3 className="text-base font-black tracking-tight uppercase text-[var(--text-main)]">{editingProduct ? 'Modifica prodotto' : 'Nuovo prodotto'}</h3>
+              <button onClick={() => setShowForm(false)} className="p-1.5 rounded-xl hover:bg-[var(--bg-card-2)] transition-colors"><X size={16} className="text-[var(--text-muted)]" /></button>
             </div>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {[
-                { name: 'name', placeholder: 'Nome prodotto', type: 'text', maxLength: 40 },
-                { name: 'price', placeholder: 'Prezzo (es. 8.50)', type: 'number', step: '0.01' },
-                { name: 'category', placeholder: 'Categoria (es. Pizze)', type: 'text' },
-              ].map(f => (
-                <input key={f.name} {...f} value={formData[f.name]} onChange={handleInputChange} required={f.name !== 'category'} className="w-full p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] font-medium text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]" />
-              ))}
-              <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] space-y-3">
+            <form onSubmit={handleSubmit} className="p-6">
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                {[
+                  { name: 'name', placeholder: 'Nome prodotto', type: 'text', maxLength: 40 },
+                  { name: 'price', placeholder: 'Prezzo (es. 8.50)', type: 'number', step: '0.01' },
+                  { name: 'category', placeholder: 'Categoria (es. Pizze)', type: 'text' },
+                ].map(f => (
+                  <input key={f.name} {...f} value={formData[f.name]} onChange={handleInputChange} required={f.name !== 'category'}
+                    className={`p-2.5 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] font-medium text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] ${f.name === 'name' ? 'col-span-2' : ''}`} />
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-[var(--text-muted)]">Colore categoria</span>
-                  <input type="color" name="color" value={formData.color} onChange={handleInputChange} className="w-10 h-10 rounded-lg cursor-pointer border-0 bg-transparent" />
+                  <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Colore</span>
+                  <input type="color" name="color" value={formData.color} onChange={handleInputChange} className="w-8 h-8 rounded-lg cursor-pointer border-0 bg-transparent" />
                 </div>
                 
                 {/* 🎨 PALETTE AUTOMATICA: Mostra i colori unici già usati nelle altre categorie */}
                 {products.length > 0 && (
-                  <div className="pt-2 border-t border-[var(--border)]/40">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2">Colori in uso nel menu:</p>
-                    <div className="flex flex-wrap gap-2">
+                  <div className="pt-1.5 border-t border-[var(--border)]/40">
+                    <div className="flex flex-wrap gap-1.5">
                       {[...new Map(products.filter(p => p.category && p.color).map(p => [p.category.toLowerCase(), p])).values()].map(p => (
                         <button
                           key={p.id}
@@ -315,8 +336,8 @@ const ProductConfig = ({ products, setProducts }) => {
               </div>
 
               <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">
-                <span className="text-xs font-black uppercase tracking-widest text-[var(--text-muted)] block mb-2">Destinazione stampa</span>
-                <div className="flex gap-2">
+                <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] block mb-2">Stampa</span>
+                <div className="flex gap-1.5">
                   {[
                     { value: 'both', label: 'Tutti', desc: 'Bar + Cucina' },
                     { value: 'bar', label: 'Solo Bar', desc: 'Ritiro Bar' },
@@ -338,15 +359,27 @@ const ProductConfig = ({ products, setProducts }) => {
                 </div>
               </div>
 
-              {/* MODIFICA: La voce di visibilità è renderizzata condizionalmente SOLO in modalità di modifica (editingProduct). In inserimento nuovo prodotto viene rimossa e preservata a "true" di default nello stato iniziale */}
               {editingProduct && (
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">
-                  <input type="checkbox" id="visible" name="visible" checked={formData.visible} onChange={handleInputChange} className="w-4 h-4 rounded text-[var(--accent)] focus:ring-[var(--accent)] bg-[var(--bg-card)] border-[var(--border)]" />
-                  <label htmlFor="visible" className="text-sm font-bold text-[var(--text-main)] cursor-pointer select-none">Prodotto visibile nel listino</label>
+                <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] flex items-center gap-3">
+                  <input type="checkbox" id="visible" name="visible" checked={formData.visible} onChange={handleInputChange} className="w-4 h-4 rounded" />
+                  <label htmlFor="visible" className="text-xs font-bold text-[var(--text-main)] cursor-pointer">Visibile nel listino</label>
                 </div>
               )}
 
-              <button type="submit" className="w-full py-3 rounded-2xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-black text-sm uppercase tracking-widest transition-all">
+              <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] space-y-2">
+                <div className="flex items-center gap-3">
+                  <input type="checkbox" id="stock_enabled" name="stock_enabled" checked={formData.stock_enabled || false}
+                    onChange={handleInputChange} className="w-4 h-4 rounded" />
+                  <label htmlFor="stock_enabled" className="text-xs font-bold text-[var(--text-main)] cursor-pointer">Disponibilità limitata</label>
+                </div>
+                {formData.stock_enabled && (
+                  <input type="number" name="stock" min="0" value={formData.stock} onChange={handleInputChange} placeholder="Quantità disponibile"
+                    className="w-full p-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                )}
+              </div>
+
+              </div>{/* fine grid */}
+              <button type="submit" className="w-full mt-4 py-2.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-black text-sm uppercase tracking-widest transition-all">
                 {editingProduct ? 'Salva modifiche' : 'Aggiungi prodotto'}
               </button>
             </form>

@@ -13,8 +13,97 @@ const DIVIDER = "=".repeat(LINE_WIDTH);
 const DIVIDER_THIN = "-".repeat(LINE_WIDTH);
 const HEADER_LOGO_WIDTH = 512;
 
-const ASSOCIAZIONE_NOME = "ASSOCIAZIONE MARIA SS DI TROCCHIO APS";
+const ASSOCIAZIONE_NOME = "APS MARIA SS DI TROCCHIO";
 const ASSOCIAZIONE_CF = "C.F. 90051130608";
+
+const SIDE_IMG_WIDTH = 125; // Ridotto leggermente per centrare tutto nei 512px max delle stampanti
+const TOTAL_PRINTER_WIDTH = 512; // Larghezza standard perfetta per stampanti termiche da 80mm
+
+export async function renderNumberSlip(printer, orderData, logoPath) {
+  const orderId = orderData.id;
+  const sideImgPath = path.join(__dirname, '..', 'assets', 'Gemini_Generated_Image_fxfw0dfxfw0dfxfw.png');
+  const numberText = String(orderId).padStart(4, '0');
+
+  // 1. Stampiamo prima la scritta in formato testo ESC/POS (Nitida, centrata e veloce)
+  printer.align('CT')
+    .size(2, 2)
+    .style('B')
+    .text('IL TUO NUMERO ORDINE:')
+    .size(1, 1)
+    .style('NORMAL');
+
+  printer.feed(1);
+
+  // 2. Generiamo il blocco Grafico [Immagine | NUMERO + Scritta | Immagine]
+  if (fs.existsSync(sideImgPath)) {
+    try {
+      const sharp = (await import('sharp')).default;
+
+      // Carichiamo l'immagine laterale e scaliamola
+      const sideImg = await sharp(sideImgPath).resize({ width: SIDE_IMG_WIDTH }).toBuffer();
+      const sideMeta = await sharp(sideImg).metadata();
+
+      // 1. Aumentiamo l'altezza 'h' aggiungendo 45px (invece di 25) per fare spazio al font da 50
+      const h = (sideMeta.height || 90) + 60;
+
+      // Calcoliamo lo spazio centrale per far rientrare tutto nei 512px della stampante
+      const svgW = TOTAL_PRINTER_WIDTH - (SIDE_IMG_WIDTH * 2);
+
+      // 2. Aggiorniamo l'SVG con le nuove coordinate Y
+      const svgText = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="${svgW}" height="${h}">
+          <rect width="${svgW}" height="${h}" fill="#ffffff"/>
+          
+          <!-- Numero principale: coordinata y impostata a 0.50 per tenerlo centrato nella sua metà superiore -->
+          <text x="${svgW / 2}" y="${h * 0.50}" font-size="${(h - 45) * 0.70}" font-weight="bold"
+                text-anchor="middle" fill="black" font-family="monospace"> ${numberText} </text>
+          
+          <!-- Scritta "Buon appetito!": alzata a font-size 50, spostata a y = 0.90 per farla scendere al massimo sul fondo -->
+          <text x="${svgW / 2}" y="${h * 0.95}" font-size="40" font-style="italic" font-weight="600"
+                text-anchor="middle" fill="black" font-family="sans-serif">Buon appetito!</text>
+        </svg>
+      `;
+      const numBuf = await sharp(Buffer.from(svgText)).png().toBuffer();
+
+      // Adattiamo anche lo sfondo dell'immagine laterale per allinearlo alla nuova altezza 'h'
+      const sideImgResized = await sharp(sideImgPath)
+        .resize({ width: SIDE_IMG_WIDTH, height: h, fit: 'contain', background: '#ffffff' })
+        .toBuffer();
+
+      // Creiamo il nastro unico finale (sfondo bianco in stringa hex per evitare il crash di Sharp)
+      const composite = await sharp({
+        create: {
+          width: TOTAL_PRINTER_WIDTH,
+          height: h,
+          channels: 4,
+          background: "#ffffff"
+        }
+      })
+        .composite([
+          { input: sideImgResized, left: 0, top: 0 },
+          { input: numBuf, left: SIDE_IMG_WIDTH, top: 0 },
+          { input: sideImgResized, left: SIDE_IMG_WIDTH + svgW, top: 0 },
+        ])
+        .png()
+        .toBuffer();
+
+      // Mandiamo in stampa la riga grafica perfettamente centrata e scalata a 512px
+      await printer.image(composite, { align: 'center', width: TOTAL_PRINTER_WIDTH });
+
+    } catch (printErr) {
+      // Fallback di emergenza: se Sharp fallisce per l'immagine, scrive il numero in grande stile testo
+      console.error("Errore generazione Sharp, fallback su testo:", printErr);
+      printer.align('CT').size(4, 4).style('B').text(`# ${numberText} #`).size(1, 1).style('NORMAL');
+    }
+  } else {
+    // Fallback se il file dell'immagine non esiste sul PC
+    printer.align('CT').size(4, 4).style('B').text(`# ${numberText} #`).size(1, 1).style('NORMAL');
+  }
+
+  // 3. Spaziatura finale e taglio scontrino
+  printer.feed(2);
+  printer.cut();
+}
 
 function loadLogoBuffer(logoPath) {
   if (!logoPath || !fs.existsSync(logoPath)) return null;
@@ -101,12 +190,13 @@ async function renderHeader(printer, { title, orderId, timestamp, logoPath, show
   printer.align("CT").text(DIVIDER_THIN);
 
   printer.align("CT").style("B").text(title).style("NORMAL");
-  if (subtitle)
+  if (subtitle) {
     printer.align("CT").text(DIVIDER_THIN);
-  printer.align("CT").style("B").text(subtitle).style("NORMAL");
-  printer.align("CT").text(DIVIDER_THIN);
+    printer.align("CT").style("B").text(subtitle).style("NORMAL");
+    printer.align("CT").text(DIVIDER_THIN);
+  }
 
-  printPickupBanner(printer, pickupStatus);
+  printPickupBanner(printer, pickupStatus, subtitle);
 
   // Ordine progressivo: sempre visibile. Data/ora: solo se showTimestamp è true.
   if (showTimestamp) {
@@ -119,7 +209,7 @@ async function renderHeader(printer, { title, orderId, timestamp, logoPath, show
   printer.align("CT").text(DIVIDER_THIN);
 }
 
-function renderItems(printer, items, layoutType = "standard") {
+function renderItems(printer, items, layoutType = "standard", bigFont = false) {
   if (layoutType === "customer") {
     printer.align("LT").text(rowThreeColumns("OMAGGIO", "QTA", "CONTRIB."));
     printer.align("CT").text(DIVIDER_THIN);
@@ -143,13 +233,24 @@ function renderItems(printer, items, layoutType = "standard") {
     });
   } else {
     const headerText = layoutType === "association" ? "DESCRIZIONE" : "OMAGGIO";
-    printer.align("LT").text(rowLR(headerText, "QTA"));
-    printer.align("CT").text(DIVIDER_THIN);
+    if (!bigFont) {
+      printer.align("LT").text(rowLR(headerText, "QTA"));
+      printer.align("CT").text(DIVIDER_THIN);
+    }
 
-    const maxTextWidth = LINE_WIDTH - 4; // costante, invariante per ogni item: calcolata una sola volta
-    const isAssociation = layoutType === "association"; // valutato una sola volta invece che per ogni item
+    const maxTextWidth = LINE_WIDTH - 4;
+    const isAssociation = layoutType === "association";
     items.forEach((item) => {
       const qty = String(item.quantity).trim();
+      if (bigFont) {
+        // Riga singola troncata con formato "Nx NOME" in grassetto grande
+        const maxW = Math.floor((LINE_WIDTH - qty.length - 2) / 2); // /2 perché size 2x
+        const truncName = item.name.toUpperCase().slice(0, maxW);
+        printer.align("LT").size(2, 2).style("B").text(`${qty}x ${truncName}`).size(1, 1).style("NORMAL");
+        if (item.note) printer.align("LT").text(`  >> ${item.note}`);
+        printer.align("CT").text(DIVIDER_THIN);
+        return; // salta il resto
+      }
       const lines = wrapText(item.name.toUpperCase(), maxTextWidth);
       lines.forEach((line, i) => {
         if (i === 0) {
@@ -171,12 +272,14 @@ function renderItems(printer, items, layoutType = "standard") {
 // Banda nera con testo bianco, font_a, size 2x2 — per lo stato di ritiro,
 // mostrato a colpo d'occhio subito sotto il titolo. Max ~21 caratteri a
 // size 2 su 42 colonne (oltre va a capo in modo brutto).
-function printPickupBanner(printer, status) {
-  if (status !== "valid") return; // invalid (o qualsiasi altro valore) non stampa nulla
-
-  const text = "VALIDO PER IL RITIRO";
+function printPickupBanner(printer, status, subtitle = "") {
+  if (status !== "valid") return;
+  // Determina testo banner dal subtitle
+  let bannerText = "VALIDO PER IL RITIRO";
+  if (subtitle.toUpperCase().includes("GASTRONOMIA") || subtitle.toUpperCase().includes("CUCINA")) bannerText = "RITIRO CUCINA";
+  else if (subtitle.toUpperCase().includes("BAR")) bannerText = "RITIRO BAR";
   printer.align("CT").font("font_a").reverse(true);
-  printer.size(2, 2).text(text);
+  printer.size(2, 2).text(bannerText);
   printer.style("NORMAL").reverse(false).size(1, 1).font("font_a");
   printer.align("CT").text(DIVIDER_THIN);
 }
@@ -241,7 +344,7 @@ export async function renderGastronomyEscpos(printer, orderData, logoPath, showL
   if (!items.length) return;
   const ts = new Date(orderData.created_at || Date.now());
   await renderHeader(printer, { title: "*** COPIA OMAGGIO GASTRONOMICO ***", orderId: orderData.id, timestamp: ts, logoPath, showLogo, pickupStatus: "valid", showTimestamp });
-  renderItems(printer, items, "gastronomy");
+  renderItems(printer, items, "gastronomy", true);
   await renderFooter(printer, { QRcode: encodeOrderId(orderData.id, ts), showQR: false });
 }
 
@@ -250,7 +353,7 @@ export async function renderBarEscpos(printer, orderData, logoPath, showLogo = t
   if (!items.length) return;
   const ts = new Date(orderData.created_at || Date.now());
   await renderHeader(printer, { title: "*** COPIA OMAGGIO BAR ***", orderId: orderData.id, timestamp: ts, logoPath, showLogo, pickupStatus: "valid", showTimestamp });
-  renderItems(printer, items, "bar");
+  renderItems(printer, items, "bar", true);
   await renderFooter(printer, { QRcode: encodeOrderId(orderData.id, ts), showQR: false });
 }
 
@@ -260,6 +363,7 @@ export const templatesEscpos = {
   Cucina: renderKitchenEscpos,
   "Ritiro Gastronomia": renderGastronomyEscpos,
   "Ritiro Bar": renderBarEscpos,
+  "Numeretto": renderNumberSlip,
 };
 
 // Risolve un singolo "setting" di stampa in: funzione template + destinazione fisica.

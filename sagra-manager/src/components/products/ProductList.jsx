@@ -47,16 +47,22 @@ const ProductList = ({ products, addToCart }) => {
               const nameLen = product.name.length;
               const nameSizeClass = nameLen > 14 ? 'text-sm' : nameLen > 9 ? 'text-base' : 'text-lg';
               const color = product.color || '#3b82f6';
+              const isLowStock = product.stock_enabled && product.stock !== null && product.stock <= 10 && product.stock > 0;
               return (
                 <button
                   key={product.id}
                   onClick={() => addToCart(product)}
-                  className="flex flex-col rounded-xl p-4 border-l-4 bg-[var(--bg-card-2)] border border-[var(--border)] active:scale-95 transition-all duration-150 text-left"
+                  className="relative flex flex-col rounded-xl p-4 border-l-4 bg-[var(--bg-card-2)] border border-[var(--border)] active:scale-95 transition-all duration-150 text-left"
                   style={{
                     borderLeftColor: color,
                     backgroundColor: `color-mix(in srgb, ${color} 6%, var(--bg-card-2))`
                   }}
                 >
+                  {isLowStock && (
+                    <div className="absolute inset-x-0 bottom-0 rounded-b-xl bg-orange-500/90 px-2 py-1 flex items-center justify-center gap-1">
+                      <span className="text-white text-[9px] font-black uppercase tracking-widest">⚡ Ultimi {product.stock}</span>
+                    </div>
+                  )}
                   <h3 className={`${nameSizeClass} font-black text-[var(--text-main)] uppercase tracking-tighter mb-3 leading-tight`}>
                     {product.name}
                   </h3>

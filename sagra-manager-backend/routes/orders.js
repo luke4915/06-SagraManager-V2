@@ -131,6 +131,17 @@ export default function (broadcast) {
     }));
     const verifiedTotal = verifiedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
+    // Verifica stock prima di aprire la transazione
+    const stockChecks = await pool.query(
+      'SELECT id, name, stock, stock_enabled FROM products WHERE id = ANY($1) AND stock_enabled = true',
+      [productIds]
+    );
+    for (const p of stockChecks.rows) {
+      const needed = verifiedItems.find(i => i.id === p.id)?.quantity || 0;
+      if (p.stock !== null && p.stock < needed)
+        return res.status(409).json({ error: `Prodotto esaurito: ${p.name}` });
+    }
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -140,6 +151,19 @@ export default function (broadcast) {
       );
       const orderId = rows[0].id;
       const timestamp = rows[0].created_at;
+
+      // Scala stock e nascondi prodotti esauriti
+      for (const p of stockChecks.rows) {
+        const needed = verifiedItems.find(i => i.id === p.id)?.quantity || 0;
+        const newStock = Math.max(0, (p.stock || 0) - needed);
+        await client.query(
+          'UPDATE products SET stock = $1, visible = CASE WHEN $1 = 0 THEN false ELSE visible END WHERE id = $2',
+          [newStock, p.id]
+        );
+        if (newStock === 0 && broadcast)
+          broadcast({ type: 'product_out_of_stock', productId: p.id });
+      }
+
       await client.query('COMMIT');
 
       // 🔴 AGGIUNTA: Tracciamo la creazione dell'ordine nell'Audit Log

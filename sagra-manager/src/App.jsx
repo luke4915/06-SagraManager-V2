@@ -138,6 +138,7 @@ const App = () => {
           case 'product_updated': setProducts(prev => prev.map(p => p.id === msg.product.id ? { ...msg.product, price: parseFloat(msg.product.price) } : p)); showToast(`"${msg.product.name}" aggiornato!`, 'success'); break;
           case 'product_created': setProducts(prev => [...prev, { ...msg.product, price: parseFloat(msg.product.price) }]); showToast('Nuovo prodotto aggiunto!', 'success'); break;
           case 'product_deleted': setProducts(prev => prev.filter(p => p.id !== msg.id)); showToast('Prodotto rimosso!', 'warning'); break;
+          case 'product_out_of_stock': setProducts(prev => prev.map(p => p.id === msg.productId ? { ...p, stock: 0, visible: false } : p)); showToast('Prodotto esaurito!', 'error'); break;
           case 'session_started': setSessionActive(true); setSessionName(msg.session.name); break;
           case 'session_ended': setSessionActive(false); setSessionName(''); break;
           default: break;

@@ -50,6 +50,13 @@ export default function (broadcast) {
         sessionName: rows[0].name
       });
 
+      // Reset stock a inizio serata — ripristina visibilità prodotti esauriti
+      await pool.query(
+        `UPDATE products
+         SET stock = NULL, visible = true
+         WHERE stock_enabled = true AND stock = 0`
+      );
+
       if (broadcast) broadcast({ type: 'session_started', session: rows[0] });
       res.json(rows[0]);
     } catch (err) {
