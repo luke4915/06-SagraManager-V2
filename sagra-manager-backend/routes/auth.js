@@ -43,15 +43,42 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// REFRESH TOKEN
-router.post('/refresh', authenticate, (req, res) => {
+// REFRESH TOKEN (Best Practice: Resiliente e Indipendente)
+router.post('/refresh', async (req, res) => {
   try {
-    const newToken = signToken(req.user);
+    // 1. Recuperiamo il cookie in modo sicuro
+    const token = req.cookies?.token;
+    if (!token) {
+      return res.status(401).json({ error: 'Token mancante' });
+    }
+
+    let decoded;
+    try {
+      // 2. Decodifichiamo il token IGNORANDO la scadenza temporale.
+      // Questo permette il refresh anche se il frontend arriva in ritardo di qualche minuto.
+      decoded = jwt.verify(token, process.env.JWT_SECRET, { ignoreExpiration: true });
+    } catch (jwtErr) {
+      logger.warn({ jwtErr }, 'Tentativo di refresh con token corrotto o alterato');
+      return res.status(401).json({ error: 'Token non valido' });
+    }
+
+    // 3. Controllo di sicurezza sul DB: l'utente esiste ancora ed è attivo?
+    const { rows } = await pool.query('SELECT * FROM users WHERE id = $1', [decoded.id]);
+    if (!rows.length) {
+      return res.status(401).json({ error: 'Utente non trovato o disabilitato' });
+    }
+    
+    const user = rows[0];
+
+    // 4. Generiamo il nuovo token e sovrascriviamo il vecchio cookie
+    const newToken = signToken(user);
     setCookie(res, newToken);
+    
+    logger.info(`[AUTH] Sessione prolungata con successo per l'utente: ${user.username}`);
     res.json({ ok: true });
   } catch (err) {
-    logger.error({ err }, 'Errore token refresh')
-    res.status(500).json({ error: 'Errore refresh token' });
+    logger.error({ err }, 'Errore critico durante il token refresh');
+    res.status(500).json({ error: 'Errore interno del server' });
   }
 });
 

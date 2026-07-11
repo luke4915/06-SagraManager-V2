@@ -40,6 +40,7 @@ export default function MenuPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [showQR, setShowQR] = useState(false);
+    const [enlargedQR, setEnlargedQR] = useState(false);
     const [showCart, setShowCart] = useState(false)
     const [showClearConfirm, setShowClearConfirm] = useState(false);
     const qrCanvasRef = useRef(null);
@@ -258,7 +259,13 @@ export default function MenuPage() {
                         </div>
 
                         <div className="flex flex-col items-center gap-3">
-                            <div className="p-4 bg-white rounded-2xl">
+                            {/* Sostituisci il vecchio contenitore del QR con questo cliccabile */}
+                            {/* 🚀 CODICE CORRETTO: Sostituisci il blocco del QR con questo */}
+                            <div
+                                onClick={() => setEnlargedQR(true)}
+                                className="p-4 bg-white rounded-2xl cursor-pointer hover:scale-105 transition-transform"
+                                title="Clicca per ingrandire"
+                            >
                                 <QRCodeCanvas id="qr-canvas" value={qrData} size={200} />
                             </div>
                             <p className="text-xs text-[var(--text-muted)] text-center font-bold">Mostra questo QR alla cassa</p>
@@ -266,6 +273,33 @@ export default function MenuPage() {
                                 className="flex items-center gap-2 px-4 py-2.5 bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] rounded-xl font-black text-xs uppercase tracking-widest hover:bg-[var(--accent)]/10 transition-all">
                                 <Download size={14} /> Salva QR
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 📱 NUOVO: Modal QR a Schermo Intero (Ottimizzato per iOS e Android) */}
+            {enlargedQR && (
+                <div className="fixed inset-0 bg-black flex flex-col items-center justify-center z-[100] animate-fade-in select-none">
+
+                    {/* Pulsante di chiusura (X) in alto a destra */}
+                    <button
+                        onClick={() => setEnlargedQR(false)}
+                        className="absolute top-6 right-6 w-12 h-12 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 active:scale-95 transition-all"
+                    >
+                        <X size={24} />
+                    </button>
+
+                    {/* Contenitore centrale del QR gigante */}
+                    <div className="w-full max-w-xs px-4 flex flex-col items-center gap-6 text-center">
+                        <div className="p-6 bg-white rounded-3xl shadow-2xl">
+                            {/* Ne disegnamo un secondo, più grande (300px), per facilitare la scansione laser */}
+                            <QRCodeCanvas value={qrData} size={280} />
+                        </div>
+
+                        <div>
+                            <p className="font-black text-lg text-white uppercase tracking-wider">Il tuo codice QR:</p>
+                            <p className="text-xs text-white/60 mt-1">Mostralo direttamente in cassa!</p>
                         </div>
                     </div>
                 </div>

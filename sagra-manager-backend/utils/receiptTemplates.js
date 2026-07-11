@@ -262,18 +262,21 @@ export const templatesEscpos = {
   "Ritiro Bar": renderBarEscpos,
 };
 
-export async function printESCPosNetwork(setting, orderData, eventName, logoPath, hostDefault = "127.0.0.1", portDefault = 443) {
+// Risolve un singolo "setting" di stampa in: funzione template + destinazione fisica.
+// Condivisa da printESCPosNetwork (singola copia) e printOrderBatch (più copie
+// raggruppate per stampante).
+function resolvePrintTarget(setting, hostDefault, portDefault) {
   let templateFunc;
   if (typeof setting === "function") {
     templateFunc = setting;
   } else if (setting && typeof setting === "object") {
     templateFunc = templatesEscpos[setting.copy_type];
-    if (!templateFunc) return console.warn(`Nessun template per: "${setting.copy_type}"`);
-  } else return;
-
-  if (!tmpDirEnsured) {
-    fs.mkdirSync(TMP_DIR, { recursive: true });
-    tmpDirEnsured = true;
+    if (!templateFunc) {
+      console.warn(`Nessun template per: "${setting.copy_type}"`);
+      return null;
+    }
+  } else {
+    return null;
   }
 
   let host = hostDefault, port = portDefault;
@@ -284,18 +287,76 @@ export async function printESCPosNetwork(setting, orderData, eventName, logoPath
     if (p) port = parseInt(p, 10);
   }
 
-  const devid = setting?.printer_devid || "local_printer";
-  const showLogo = setting?.show_logo !== undefined ? setting.show_logo : true;
-  const showTimestamp = setting?.show_timestamp !== undefined ? setting.show_timestamp : false;
+  return {
+    templateFunc,
+    host,
+    port,
+    devid: setting?.printer_devid || "local_printer",
+    showLogo: setting?.show_logo !== undefined ? setting.show_logo : true,
+    showTimestamp: setting?.show_timestamp !== undefined ? setting.show_timestamp : false,
+  };
+}
+
+export async function printESCPosNetwork(setting, orderData, eventName, logoPath, hostDefault = "127.0.0.1", portDefault = 443) {
+  const target = resolvePrintTarget(setting, hostDefault, portDefault);
+  if (!target) return;
+
+  if (!tmpDirEnsured) {
+    fs.mkdirSync(TMP_DIR, { recursive: true });
+    tmpDirEnsured = true;
+  }
 
   const printer = new EposXmlPrinter();
   console.time("render");
-  await templateFunc(printer, orderData, logoPath, showLogo, showTimestamp);
+  await target.templateFunc(printer, orderData, logoPath, target.showLogo, target.showTimestamp);
   console.timeEnd("render");
   if (!printer.elements.length) return;
 
   console.time("send");
-  await printer.send(host, { devid, port });
-  console.timeEnd("send")
-  console.log(`[STAMPA] Completata su: ${host}:${port} (devid=${devid})`);
+  await printer.send(target.host, { devid: target.devid, port: target.port });
+  console.timeEnd("send");
+  console.log(`[STAMPA] Completata su: ${target.host}:${target.port} (devid=${target.devid})`);
+}
+
+// Stampa più copie di uno stesso ordine, raggruppandole per stampante fisica
+// (stessa host:port:devid = un solo invio HTTP con più cut() in sequenza,
+// invece di un round-trip separato per copia). Stampanti diverse partono in
+// parallelo, dato che non c'è contesa hardware tra loro.
+//
+// settingsArray: stessa forma dei "setting" già usati da printESCPosNetwork
+// (uno per copia). Il raggruppamento è automatico, quindi funziona sia con
+// una stampante sola (oggi) sia con più stampanti dedicate per reparto (domani)
+// senza dover toccare questa funzione.
+export async function printOrderBatch(settingsArray, orderData, logoPath, hostDefault = "127.0.0.1", portDefault = 443) {
+  if (!tmpDirEnsured) {
+    fs.mkdirSync(TMP_DIR, { recursive: true });
+    tmpDirEnsured = true;
+  }
+
+  const groups = new Map(); // key "host:port:devid" -> { host, port, devid, targets: [] }
+
+  for (const setting of settingsArray) {
+    const target = resolvePrintTarget(setting, hostDefault, portDefault);
+    if (!target) continue;
+    const key = `${target.host}:${target.port}:${target.devid}`;
+    if (!groups.has(key)) groups.set(key, { host: target.host, port: target.port, devid: target.devid, targets: [] });
+    groups.get(key).targets.push(target);
+  }
+
+  await Promise.all(
+    [...groups.values()].map(async (group) => {
+      const printer = new EposXmlPrinter();
+      console.time(`render[${group.host}:${group.port}]`);
+      for (const target of group.targets) {
+        await target.templateFunc(printer, orderData, logoPath, target.showLogo, target.showTimestamp);
+      }
+      console.timeEnd(`render[${group.host}:${group.port}]`);
+      if (!printer.elements.length) return;
+
+      console.time(`send[${group.host}:${group.port}]`);
+      await printer.send(group.host, { devid: group.devid, port: group.port });
+      console.timeEnd(`send[${group.host}:${group.port}]`);
+      console.log(`[STAMPA] Batch di ${group.targets.length} copie completato su: ${group.host}:${group.port} (devid=${group.devid})`);
+    })
+  );
 }

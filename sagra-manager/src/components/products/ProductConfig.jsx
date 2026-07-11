@@ -38,10 +38,25 @@ const ProductConfig = ({ products, setProducts }) => {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : (name === 'price' ? parseFloat(value) || 0 : value)
-    }));
+    
+    setFormData(prev => {
+      const updated = {
+        ...prev,
+        [name]: type === 'checkbox' ? checked : (name === 'price' ? parseFloat(value) || 0 : value)
+      };
+
+      // 🚀 AUTOMAZIONE COLORE: Se stai digitando la categoria, cerca se esiste già quel colore nel menu
+      if (name === 'category' && value.trim() !== '') {
+        const existingProductWithSameCat = products.find(
+          p => p.category && p.category.toLowerCase() === value.trim().toLowerCase()
+        );
+        if (existingProductWithSameCat && existingProductWithSameCat.color) {
+          updated.color = existingProductWithSameCat.color;
+        }
+      }
+
+      return updated;
+    });
   };
 
   // Toggle visibilità per singolo prodotto istantaneo
@@ -270,9 +285,33 @@ const ProductConfig = ({ products, setProducts }) => {
               ].map(f => (
                 <input key={f.name} {...f} value={formData[f.name]} onChange={handleInputChange} required={f.name !== 'category'} className="w-full p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] font-medium text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]" />
               ))}
-              <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">
-                <span className="text-sm font-bold text-[var(--text-muted)]">Colore categoria</span>
-                <input type="color" name="color" value={formData.color} onChange={handleInputChange} className="w-10 h-10 rounded-lg cursor-pointer border-0 bg-transparent" />
+              <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-[var(--text-muted)]">Colore categoria</span>
+                  <input type="color" name="color" value={formData.color} onChange={handleInputChange} className="w-10 h-10 rounded-lg cursor-pointer border-0 bg-transparent" />
+                </div>
+                
+                {/* 🎨 PALETTE AUTOMATICA: Mostra i colori unici già usati nelle altre categorie */}
+                {products.length > 0 && (
+                  <div className="pt-2 border-t border-[var(--border)]/40">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2">Colori in uso nel menu:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[...new Map(products.filter(p => p.category && p.color).map(p => [p.category.toLowerCase(), p])).values()].map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          title={p.category}
+                          onClick={() => setFormData(prev => ({ ...prev, color: p.color, category: prev.category || p.category }))}
+                          className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 active:scale-95`}
+                          style={{ 
+                            backgroundColor: p.color,
+                            borderColor: formData.color.toLowerCase() === p.color.toLowerCase() ? 'var(--text-main)' : 'transparent'
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">

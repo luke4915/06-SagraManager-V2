@@ -4,33 +4,38 @@ const API_URL = import.meta.env.VITE_API_URL;
 const AuthContext = createContext();
 
 // Refresh silenzioso ogni 6h — il token dura 8h quindi c'è sempre margine
-const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const refreshTimer = useRef(null);
 
+  const executeRefresh = async () => {
+    try {
+      const res = await fetch(`${API_URL}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!res.ok) {
+        // Se il server risponde con un errore (es: token revocato o utente eliminato), logout forzato
+        setUser(null);
+        if (refreshTimer.current) clearInterval(refreshTimer.current);
+      }
+    } catch (err) {
+      // Se il server è temporaneamente offline o c'è un calo di Wi-Fi durante la sagra,
+      // non buttiamo fuori l'utente! Generiamo solo un avviso in console.
+      console.warn('Refresh token momentaneamente fallito (problema di rete o server occupato):', err);
+    }
+  };
+
   const startRefreshTimer = () => {
     if (refreshTimer.current) clearInterval(refreshTimer.current);
-    refreshTimer.current = setInterval(async () => {
-      try {
-        const res = await fetch(`${API_URL}/auth/refresh`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
-        if (!res.ok) {
-          // Token scaduto, cookie non valido o refresh fallito → logout forzato sicuro
-          setUser(null);
-          if (refreshTimer.current) clearInterval(refreshTimer.current);
-        }
-      } catch (err) {
-        console.warn('Refresh token fallito — backend non raggiungibile o sessione assente?', err);
-      }
-    }, REFRESH_INTERVAL_MS);
+    refreshTimer.current = setInterval(executeRefresh, REFRESH_INTERVAL_MS);
   };
 
   useEffect(() => {
@@ -40,18 +45,26 @@ export const AuthProvider = ({ children }) => {
         if (res.ok) {
           const userData = await res.json();
           setUser(userData);
+          
+          // 🚀 IL FIX STRATEGICO PER IL REFRESH PAGINA (F5):
+          // Non appena l'operatore ricarica la pagina o apre una nuova tab, 
+          // forziamo SUBITO un refresh preventivo del cookie.
+          // In questo modo il token viene esteso a 8 ore piene a partire da QUESTO ESATTO MOMENTO.
+          await executeRefresh();
+          
+          // Ora che il token è fresco al 100%, facciamo partire il timer orario di mantenimento
           startRefreshTimer();
         } else {
-          // Se lo status non è 200 (es: 401 Unauthorized), azzeriamo l'utente locale
           setUser(null);
         }
       } catch (err) {
         console.error('Sessione non valida, scaduta o server HTTPS non in ascolto', err);
-        setUser(null); // 🔴 SICUREZZA: Forza lo stato vuoto se il server risponde picche o è offline
+        setUser(null);
       } finally {
         setLoading(false);
       }
     };
+    
     checkAuth();
     return () => { if (refreshTimer.current) clearInterval(refreshTimer.current); };
   }, []);
