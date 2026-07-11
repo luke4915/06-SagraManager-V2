@@ -19,6 +19,45 @@ function safeParseJSON(value, fallback = []) {
 
 const TERMINAL_STATUSES = ['canceled', 'completed'];
 
+// Helper per calcolare il numero d'ordine da 1 a 100 con prefisso alfabetico (A1-A100 -> B1-B100...)
+async function getDisplayOrderId(orderId, timestamp) {
+  try {
+    // 1. Troviamo l'inizio della sessione attiva
+    const { rows: sessions } = await pool.query(
+      'SELECT start_time FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
+    );
+
+    let startTime = timestamp;
+    if (sessions.length > 0) {
+      startTime = sessions[0].start_time;
+    }
+
+    // 2. Contiamo basandoci sull'id sequenziale (evita bug di millisecondi identici)
+    const { rows: countRows } = await pool.query(
+      'SELECT COUNT(*) as count FROM orders WHERE created_at >= $1 AND id <= $2',
+      [startTime, orderId]
+    );
+
+    const positionInSession = parseInt(countRows[0].count, 10) || 1;
+
+    // 3. Calcolo della lettera (0 = A, 1 = B, etc.) basandoci sui blocchi da 100
+    const letterIndex = Math.floor((positionInSession - 1) / 100);
+    // Converte l'indice in lettera ASCII (65 è il codice di 'A')
+    const letter = String.fromCharCode(65 + (letterIndex % 26));
+
+    // 4. Calcolo del numero da 1 a 100
+    const number = ((positionInSession - 1) % 100) + 1;
+
+    // Ritorna la stringa combinata (es. "A1", "A100", "B1")
+    return `${letter}${number}`;
+  } catch (err) {
+    logger.error({ err }, "Errore nel calcolo del numero progressivo. Fallback.");
+    // Fallback d'emergenza con lettera 'A' se salta il database
+    const fallbackNumber = ((orderId - 1) % 100) + 1;
+    return `A${fallbackNumber}`;
+  }
+}
+
 async function printOrder(orderData, sessionName) {
   const { rows: settings } = await pool.query(
     `SELECT ps.printer_type, ps.printer_address, ct.name AS copy_type
@@ -40,14 +79,18 @@ async function printOrder(orderData, sessionName) {
 
   const logoPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'logo_5calzoni.png');
 
+  // Calcoliamo il numero progressivo specifico della serata (1-100) da stampare
+  const displayId = await getDisplayOrderId(orderData.id, orderData.created_at);
+
   for (const s of settings) {
     try {
       const enrichedOrder = {
         ...orderData,
+        id: displayId, // Sovrascriviamo l'id reale con quello cortissimo (1-100) per i template di stampa
+        realDbId: orderData.id, // Ci teniamo l'id reale nel caso servisse tracciarlo nei log
         items: orderData.items.map(i => ({ ...i, print_destination: destMap[i.id] || 'both' })),
       };
 
-      // Logghiamo l'inizio del processo per monitorare lo stato in Express
       logger.info(`[ROUTER ORDERS] Avvio flusso di stampa per copia: ${s.copy_type} su ${s.printer_address}`);
 
       // Attendiamo esplicitamente che il socket si apra, scriva e si chiuda prima di passare alla copia successiva
@@ -62,7 +105,7 @@ async function printOrder(orderData, sessionName) {
 
 export default function (broadcast) {
 
-  // GET /orders (Modificata solo per iniettare le categorie reali a runtime)
+  // GET /orders
   router.get('/', authenticate, async (req, res) => {
     try {
       let query = 'SELECT * FROM orders ORDER BY created_at DESC';
@@ -156,17 +199,23 @@ export default function (broadcast) {
       for (const p of stockChecks.rows) {
         const needed = verifiedItems.find(i => i.id === p.id)?.quantity || 0;
         const newStock = Math.max(0, (p.stock || 0) - needed);
+
         await client.query(
           'UPDATE products SET stock = $1, visible = CASE WHEN $1 = 0 THEN false ELSE visible END WHERE id = $2',
           [newStock, p.id]
         );
-        if (newStock === 0 && broadcast)
-          broadcast({ type: 'product_out_of_stock', productId: p.id });
+
+        // FIX: Ora inviamo sempre l'aggiornamento, non solo quando arriva a 0
+        if (broadcast) {
+          broadcast({
+            type: 'product_stock_updated',
+            product: { id: p.id, stock: newStock, visible: newStock > 0 ? p.visible : false }
+          });
+        }
       }
 
       await client.query('COMMIT');
 
-      // 🔴 AGGIUNTA: Tracciamo la creazione dell'ordine nell'Audit Log
       await logAudit(req.user.id, 'CREATE_ORDER', {
         orderId,
         total: verifiedTotal,
@@ -176,10 +225,27 @@ export default function (broadcast) {
       const { rows: sessionRows } = await pool.query(
         'SELECT name FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
       );
+
+      // Calcoliamo il numero cortissimo (1-100) per l'interfaccia grafica e i messaggi WebSocket
+      const displayId = await getDisplayOrderId(orderId, timestamp);
       const orderData = { id: orderId, created_at: timestamp, items: verifiedItems, total: verifiedTotal };
 
-      if (broadcast) broadcast({ type: 'order_created', order: { id: orderId, items: verifiedItems, total: verifiedTotal, status: status || 'pending', created_at: timestamp } });
-      res.json({ success: true, orderId });
+      if (broadcast) {
+        broadcast({
+          type: 'order_created',
+          order: {
+            id: orderId,
+            display_id: displayId, // Forniamo il progressivo cortissimo anche ai monitor/KDS
+            items: verifiedItems,
+            total: verifiedTotal,
+            status: status || 'pending',
+            created_at: timestamp
+          }
+        });
+      }
+
+      // Restituiamo al client web sia l'ID reale che quello visualizzato
+      res.json({ success: true, orderId, displayOrderId: displayId });
 
       printOrder(orderData, sessionRows[0]?.name || 'Serata').catch(err =>
         logger.error({ err }, 'Errore printOrder')
@@ -193,7 +259,7 @@ export default function (broadcast) {
     }
   });
 
-  // PUT /orders/:id (Modifica/Storno Stato - TRACCIATO)
+  // PUT /orders/:id
   router.put('/:id', authenticate, async (req, res) => {
     try {
       const { id } = req.params;
@@ -210,7 +276,6 @@ export default function (broadcast) {
       );
       const updated = { ...rows[0], items: safeParseJSON(rows[0].items) };
 
-      // 🔴 AGGIUNTA: Tracciamo il cambio di stato (utilissimo se l'ordine viene annullato/stornato!)
       await logAudit(req.user.id, 'UPDATE_ORDER_STATUS', {
         orderId: id,
         oldStatus: current[0].status,
@@ -225,14 +290,13 @@ export default function (broadcast) {
     }
   });
 
-  // POST /orders/:id/reprint (Ristampa Scontrino - TRACCIATO)
+  // POST /orders/:id/reprint
   router.post('/:id/reprint', authenticate, async (req, res) => {
     try {
       const { rows } = await pool.query('SELECT * FROM orders WHERE id=$1', [req.params.id]);
       if (!rows.length) return res.status(404).json({ error: 'Ordine non trovato' });
       const order = rows[0];
 
-      // 🔴 AGGIUNTA: Tracciamo chi richiede la ristampa di uno scontrino
       await logAudit(req.user.id, 'REPRINT_ORDER', { orderId: req.params.id });
 
       const { rows: sessionRows } = await pool.query(
@@ -249,7 +313,7 @@ export default function (broadcast) {
     }
   });
 
-  // GET /orders/kds — pubblico, solo ordini pending/preparing della sessione attiva
+  // GET /orders/kds
   router.get('/kds', async (req, res) => {
     try {
       const { rows: sessions } = await pool.query(

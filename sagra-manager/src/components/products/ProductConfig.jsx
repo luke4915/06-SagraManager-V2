@@ -16,7 +16,7 @@ const ProductConfig = ({ products, setProducts }) => {
   const [selectedIds, setSelectedIds] = useState([]);
 
   // MODIFICA: Aggiunto stato per filtrare solo i prodotti visibili nella dashboard principale
-  const [showOnlyVisible, setShowOnlyVisible] = useState(false);
+  const [showOnlyVisible, setShowOnlyVisible] = useState(true);
 
   // MODIFICA: Modificato il reset del form per la creazione: "visible" è blindato a true di default
   const openAddForm = () => {
@@ -38,7 +38,7 @@ const ProductConfig = ({ products, setProducts }) => {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    
+
     setFormData(prev => {
       const updated = {
         ...prev,
@@ -182,8 +182,8 @@ const ProductConfig = ({ products, setProducts }) => {
           <button
             onClick={() => setShowOnlyVisible(!showOnlyVisible)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all border ${showOnlyVisible
-                ? 'bg-green-600 border-green-600 text-white'
-                : 'bg-[var(--bg-card)] border-[var(--border)] text-[var(--text-main)] hover:border-gray-400'
+              ? 'bg-green-600 border-green-600 text-white'
+              : 'bg-[var(--bg-card)] border-[var(--border)] text-[var(--text-main)] hover:border-gray-400'
               }`}
           >
             {showOnlyVisible ? <Eye size={14} /> : <EyeOff size={14} />}
@@ -307,76 +307,76 @@ const ProductConfig = ({ products, setProducts }) => {
                 ))}
               </div>
               <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Colore</span>
-                  <input type="color" name="color" value={formData.color} onChange={handleInputChange} className="w-8 h-8 rounded-lg cursor-pointer border-0 bg-transparent" />
-                </div>
-                
-                {/* 🎨 PALETTE AUTOMATICA: Mostra i colori unici già usati nelle altre categorie */}
-                {products.length > 0 && (
-                  <div className="pt-1.5 border-t border-[var(--border)]/40">
-                    <div className="flex flex-wrap gap-1.5">
-                      {[...new Map(products.filter(p => p.category && p.color).map(p => [p.category.toLowerCase(), p])).values()].map(p => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          title={p.category}
-                          onClick={() => setFormData(prev => ({ ...prev, color: p.color, category: prev.category || p.category }))}
-                          className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 active:scale-95`}
-                          style={{ 
-                            backgroundColor: p.color,
-                            borderColor: formData.color.toLowerCase() === p.color.toLowerCase() ? 'var(--text-main)' : 'transparent'
-                          }}
-                        />
-                      ))}
-                    </div>
+                <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Colore</span>
+                    <input type="color" name="color" value={formData.color} onChange={handleInputChange} className="w-8 h-8 rounded-lg cursor-pointer border-0 bg-transparent" />
                   </div>
-                )}
-              </div>
 
-              <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">
-                <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] block mb-2">Stampa</span>
-                <div className="flex gap-1.5">
-                  {[
-                    { value: 'both', label: 'Tutti', desc: 'Bar + Cucina' },
-                    { value: 'bar', label: 'Solo Bar', desc: 'Ritiro Bar' },
-                    { value: 'kitchen', label: 'Solo Cucina', desc: 'Gastronomia' },
-                  ].map(opt => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, print_destination: opt.value }))}
-                      className={`flex-1 py-2 rounded-xl border text-xs font-black transition-all ${formData.print_destination === opt.value
+                  {/* 🎨 PALETTE AUTOMATICA: Mostra i colori unici già usati nelle altre categorie */}
+                  {products.length > 0 && (
+                    <div className="pt-1.5 border-t border-[var(--border)]/40">
+                      <div className="flex flex-wrap gap-1.5">
+                        {[...new Map(products.filter(p => p.category && p.color).map(p => [p.category.toLowerCase(), p])).values()].map(p => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            title={p.category}
+                            onClick={() => setFormData(prev => ({ ...prev, color: p.color, category: prev.category || p.category }))}
+                            className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 active:scale-95`}
+                            style={{
+                              backgroundColor: p.color,
+                              borderColor: formData.color.toLowerCase() === p.color.toLowerCase() ? 'var(--text-main)' : 'transparent'
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] block mb-2">Stampa</span>
+                  <div className="flex gap-1.5">
+                    {[
+                      { value: 'both', label: 'Tutti', desc: 'Bar + Cucina' },
+                      { value: 'bar', label: 'Solo Bar', desc: 'Ritiro Bar' },
+                      { value: 'kitchen', label: 'Solo Cucina', desc: 'Gastronomia' },
+                    ].map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, print_destination: opt.value }))}
+                        className={`flex-1 py-2 rounded-xl border text-xs font-black transition-all ${formData.print_destination === opt.value
                           ? 'bg-[var(--accent)] border-[var(--accent)] text-white'
                           : 'bg-[var(--bg-card)] border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)]'
-                        }`}
-                    >
-                      <div>{opt.label}</div>
-                      <div className="text-[9px] font-medium opacity-70 mt-0.5">{opt.desc}</div>
-                    </button>
-                  ))}
+                          }`}
+                      >
+                        <div>{opt.label}</div>
+                        <div className="text-[9px] font-medium opacity-70 mt-0.5">{opt.desc}</div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {editingProduct && (
-                <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] flex items-center gap-3">
-                  <input type="checkbox" id="visible" name="visible" checked={formData.visible} onChange={handleInputChange} className="w-4 h-4 rounded" />
-                  <label htmlFor="visible" className="text-xs font-bold text-[var(--text-main)] cursor-pointer">Visibile nel listino</label>
-                </div>
-              )}
-
-              <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] space-y-2">
-                <div className="flex items-center gap-3">
-                  <input type="checkbox" id="stock_enabled" name="stock_enabled" checked={formData.stock_enabled || false}
-                    onChange={handleInputChange} className="w-4 h-4 rounded" />
-                  <label htmlFor="stock_enabled" className="text-xs font-bold text-[var(--text-main)] cursor-pointer">Disponibilità limitata</label>
-                </div>
-                {formData.stock_enabled && (
-                  <input type="number" name="stock" min="0" value={formData.stock} onChange={handleInputChange} placeholder="Quantità disponibile"
-                    className="w-full p-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                {editingProduct && (
+                  <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] flex items-center gap-3">
+                    <input type="checkbox" id="visible" name="visible" checked={formData.visible} onChange={handleInputChange} className="w-4 h-4 rounded" />
+                    <label htmlFor="visible" className="text-xs font-bold text-[var(--text-main)] cursor-pointer">Visibile nel listino</label>
+                  </div>
                 )}
-              </div>
+
+                <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] space-y-2">
+                  <div className="flex items-center gap-3">
+                    <input type="checkbox" id="stock_enabled" name="stock_enabled" checked={formData.stock_enabled || false}
+                      onChange={handleInputChange} className="w-4 h-4 rounded" />
+                    <label htmlFor="stock_enabled" className="text-xs font-bold text-[var(--text-main)] cursor-pointer">Disponibilità limitata</label>
+                  </div>
+                  {formData.stock_enabled && (
+                    <input type="number" name="stock" min="0" value={formData.stock} onChange={handleInputChange} placeholder="Quantità disponibile"
+                      className="w-full p-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                  )}
+                </div>
 
               </div>{/* fine grid */}
               <button type="submit" className="w-full mt-4 py-2.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-black text-sm uppercase tracking-widest transition-all">

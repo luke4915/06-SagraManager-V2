@@ -138,7 +138,13 @@ const App = () => {
           case 'product_updated': setProducts(prev => prev.map(p => p.id === msg.product.id ? { ...msg.product, price: parseFloat(msg.product.price) } : p)); showToast(`"${msg.product.name}" aggiornato!`, 'success'); break;
           case 'product_created': setProducts(prev => [...prev, { ...msg.product, price: parseFloat(msg.product.price) }]); showToast('Nuovo prodotto aggiunto!', 'success'); break;
           case 'product_deleted': setProducts(prev => prev.filter(p => p.id !== msg.id)); showToast('Prodotto rimosso!', 'warning'); break;
-          case 'product_out_of_stock': setProducts(prev => prev.map(p => p.id === msg.productId ? { ...p, stock: 0, visible: false } : p)); showToast('Prodotto esaurito!', 'error'); break;
+          case 'product_stock_updated':
+            setProducts(prev => prev.map(p =>
+              p.id === msg.product.id
+                ? { ...p, stock: msg.product.stock, visible: msg.product.visible }
+                : p
+            ));
+            break;
           case 'session_started': setSessionActive(true); setSessionName(msg.session.name); break;
           case 'session_ended': setSessionActive(false); setSessionName(''); break;
           default: break;
@@ -157,14 +163,45 @@ const App = () => {
 
   useEffect(() => setTotal(cart.reduce((sum, i) => sum + i.price * i.quantity, 0)), [cart]);
 
-  const addToCart = (product) => {
+  const addToCart = (product, requestedQty = 1) => {
+    // Calcoliamo la quantità GIÀ presente nel carrello per questo prodotto
+    const currentCartQty = cart.filter(i => i.id === product.id).reduce((sum, i) => sum + i.quantity, 0);
+
+    // Controllo dello stock disponibile
+    if (product.stock_enabled && product.stock !== null) {
+      if (currentCartQty + requestedQty > product.stock) {
+        showToast(`Prodotto "${product.name}" esaurito o quantità massima raggiunta!`, 'warning');
+        return false;
+      }
+    }
+
     playSagraSound('product_select_sound');
+
     setCart(prev => {
       const exists = prev.find(i => i.id === product.id && (i.note || '') === (product.note || ''));
-      if (exists) return prev.map(i => i.id === product.id && (i.note || '') === (product.note || '') ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...prev, { ...product, quantity: 1 }];
+
+      if (exists) {
+        return prev.map(i => i.id === product.id && (i.note || '') === (product.note || '')
+          ? { ...i, quantity: i.quantity + requestedQty }
+          : i
+        );
+      }
+
+      // AGGIUNTA: Inseriamo il type: 'sale' di default quando un nuovo prodotto entra nel carrello
+      return [...prev, { ...product, quantity: requestedQty, type: 'sale' }];
     });
+
+    return true;
   };
+
+  const updateItemType = (item, newType) => {
+    setCart(prev => prev.map(i =>
+      (i.id === item.id && (i.note || '') === (item.note || ''))
+        ? { ...i, type: newType }
+        : i
+    ));
+  };
+
   const clearCart = (isManual = false) => { if (isManual) playSagraSound('empty_cart_sound'); setCart([]); };
   const removeFromCart = (product) => setCart(prev => prev.filter(i => !(i.id === product.id && (i.note || '') === (product.note || ''))));
   const removeLastItem = (product) => setCart(prev => prev.map(i => i.id === product.id && (i.note || '') === (product.note || '') ? { ...i, quantity: i.quantity - 1 } : i).filter(i => i.quantity > 0));
@@ -235,7 +272,7 @@ const App = () => {
   const cartProps = {
     cart, setCart, total, addToCart, removeFromCart,
     removeLastItem, clearCart, sendOrder,
-    sessionActive, wsConnected,
+    sessionActive, wsConnected, updateItemType
   };
 
   return (
@@ -290,7 +327,7 @@ const App = () => {
               <OrdersKitchen />
             ) : (
               <Routes>
-                <Route path="/dashboard" element={<ProductList products={products} addToCart={addToCart} />} />
+                <Route path="/dashboard" element={<ProductList products={products} addToCart={addToCart} cart={cart} />} />
                 <Route path="/kitchen" element={<OrdersKitchen />} />
                 <Route path="/statistics" element={<Statistics />} />
                 <Route path="/config" element={<ProductConfig products={products} setProducts={setProducts} />} />

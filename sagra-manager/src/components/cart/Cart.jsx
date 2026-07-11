@@ -282,16 +282,23 @@ const QRScanModal = ({ currentCart, onMerge, onReplace, onClose }) => {
 
 // ─── Modale Item Carrello ───────────────────────────────────────
 const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange }) => {
+
   const [note, setNote] = useState(item.note || '');
+
   const handleClose = () => {
     if (note !== (item.note || '')) onNoteChange(item, note);
     onClose();
   };
 
+  // Logica di blocco: se ha lo stock abilitato e la quantità ha raggiunto il massimo
+  const isMaxStockReached = item.stock_enabled && item.stock !== null && item.quantity >= item.stock;
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={handleClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative w-full max-w-sm bg-[var(--bg-card)] rounded-xl border border-[var(--border)] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+
+        {/* Header Modale */}
         <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-[var(--border)]">
           <div className="flex-1 min-w-0 pr-3">
             <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-0.5">Articolo selezionato</p>
@@ -300,14 +307,39 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange 
           </div>
           <button onClick={handleClose} className="p-2 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors shrink-0"><X size={15} /></button>
         </div>
+
+        {/* Gestione Quantità */}
         <div className="px-5 py-4 border-b border-[var(--border)]">
           <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-3">Quantità</p>
           <div className="flex items-center justify-between gap-3">
-            <button onClick={() => onRemove(item)} className="flex-1 py-3 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] flex justify-center text-[var(--text-main)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all active:scale-95"><Minus size={16} /></button>
+            {/* Tasto MINUS */}
+            <button onClick={() => onRemove(item)} className="flex-1 py-3 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] flex justify-center text-[var(--text-main)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all active:scale-95">
+              <Minus size={16} />
+            </button>
+
             <span className="text-3xl font-black tabular-nums text-[var(--text-main)] w-12 text-center">{item.quantity}</span>
-            <button onClick={() => onAdd(item)} className="flex-1 py-3 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] flex justify-center text-[var(--text-main)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all active:scale-95"><Plus size={16} /></button>
+
+            {/* Tasto PLUS allineato (aggiunta classe "border") */}
+            <button
+              onClick={() => { if (!isMaxStockReached) onAdd(item); }}
+              disabled={isMaxStockReached}
+              className={`flex-1 py-3 rounded-xl border flex justify-center transition-all ${isMaxStockReached
+                ? 'bg-gray-500/10 border-gray-500/20 text-gray-500 cursor-not-allowed opacity-50'
+                : 'bg-[var(--bg-card-2)] border-[var(--border)] text-[var(--text-main)] hover:border-[var(--accent)] hover:text-[var(--accent)] active:scale-95'
+                }`}
+            >
+              <Plus size={16} />
+            </button>
           </div>
+          {/* Opzionale: piccolo alert sotto i bottoni per spiegare il blocco */}
+          {isMaxStockReached && (
+            <p className="text-[9px] text-orange-500 text-center mt-2 font-bold uppercase tracking-wider">
+              Scorte terminate per questo articolo
+            </p>
+          )}
         </div>
+
+        {/* Gestione Note */}
         <div className="px-5 py-4 border-b border-[var(--border)]">
           <div className="flex items-center gap-2 mb-2">
             <MessageSquare size={11} className="text-[var(--text-muted)]" />
@@ -317,10 +349,17 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange 
             value={note} onChange={e => setNote(e.target.value.toUpperCase())}
             className="w-full bg-[var(--bg-input)] px-3 py-2.5 rounded-xl text-sm font-medium outline-none ring-1 ring-[var(--border)] focus:ring-[var(--accent)] text-[var(--text-main)] resize-none placeholder:text-[var(--text-muted)] placeholder:font-normal transition-[ring]" />
         </div>
-        <div className="px-5 py-4">
+
+        {/* FIX: Bottoni Affiancati (Rimuovi e Conferma) */}
+        <div className="px-5 py-4 flex gap-3">
           <button onClick={() => { onDelete(item); onClose(); }}
-            className="w-full py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 font-black text-xs uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2">
-            <Trash2 size={13} /> Rimuovi dal carrello
+            className="flex-1 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 font-black text-xs uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2">
+            <Trash2 size={13} /> Rimuovi
+          </button>
+
+          <button onClick={handleClose}
+            className="flex-1 py-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm">
+            <Check size={14} /> Conferma
           </button>
         </div>
       </div>
@@ -358,6 +397,14 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
     const received = parseFloat(amountReceived.replace(',', '.')) || 0;
     setChange(received - total);
   }, [amountReceived, total]);
+
+  // Reset del campo "ricevuti" quando il carrello viene svuotato 
+  // (sia post-ordine che tramite svuotamento manuale)
+  useEffect(() => {
+    if (!cart || cart.length === 0) {
+      setAmountReceived('');
+    }
+  }, [cart]); // Ascolta l'array del carrello
 
   const cartKey = (item) => `${item.id}__${item.note || ''}`;
 
@@ -445,6 +492,7 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
           onRemove={removeLastItem}
           onDelete={removeFromCart}
           onNoteChange={handleNoteChange}
+          onTypeChange={updateItemType}
         />
       )}
       {isReprintModalOpen && <ReprintSelectionModal onClose={() => setIsReprintModalOpen(false)} />}

@@ -22,7 +22,7 @@ const TOTAL_PRINTER_WIDTH = 512; // Larghezza standard perfetta per stampanti te
 export async function renderNumberSlip(printer, orderData, logoPath) {
   const orderId = orderData.id;
   const sideImgPath = path.join(__dirname, '..', 'assets', 'Gemini_Generated_Image_fxfw0dfxfw0dfxfw.png');
-  const numberText = String(orderId).padStart(4, '0');
+  const numberText = String(orderId);
 
   // 1. Stampiamo prima la scritta in formato testo ESC/POS (Nitida, centrata e veloce)
   printer.align('CT')
@@ -103,6 +103,62 @@ export async function renderNumberSlip(printer, orderData, logoPath) {
   // 3. Spaziatura finale e taglio scontrino
   printer.feed(2);
   printer.cut();
+}
+
+// Genera il blocco grafico [Immagine | NUMERO PULITO | Immagine] 
+async function renderTopHeaderImage(printer, orderId) {
+  const sideImgPath = path.join(__dirname, '..', 'assets', 'Gemini_Generated_Image_fxfw0dfxfw0dfxfw.png');
+  const numberText = String(orderId);
+
+  if (fs.existsSync(sideImgPath)) {
+    try {
+      const sharp = (await import('sharp')).default;
+
+      const sideImg = await sharp(sideImgPath).resize({ width: SIDE_IMG_WIDTH }).toBuffer();
+      const sideMeta = await sharp(sideImg).metadata();
+      const h = (sideMeta.height || 90) + 60;
+      const svgW = TOTAL_PRINTER_WIDTH - (SIDE_IMG_WIDTH * 2);
+
+      // SVG con la scritta fissa in alto e il numero progressivo pulito sotto
+      const svgText = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="${svgW}" height="${h}">
+          <rect width="${svgW}" height="${h}" fill="#ffffff"/>
+          <!-- Testo identificativo in alto -->
+          <text x="${svgW / 2}" y="${h * 0.15}" font-size="28" font-weight="600"
+                text-anchor="middle" fill="black" font-family="sans-serif">NUMERO ORDINE:</text>
+          <!-- Numero progressivo gigante -->
+          <text x="${svgW / 2}" y="${h * 0.95}" font-size="${(h - 45) * 0.75}" font-weight="bold"
+                text-anchor="middle" fill="black" font-family="monospace">${numberText}</text>
+        </svg>
+      `;
+      const numBuf = await sharp(Buffer.from(svgText)).png().toBuffer();
+
+      const sideImgResized = await sharp(sideImgPath)
+        .resize({ width: SIDE_IMG_WIDTH, height: h, fit: 'contain', background: '#ffffff' })
+        .toBuffer();
+
+      const composite = await sharp({
+        create: {
+          width: TOTAL_PRINTER_WIDTH,
+          height: h,
+          channels: 4,
+          background: "#ffffff"
+        }
+      })
+        .composite([
+          { input: sideImgResized, left: 0, top: 0 },
+          { input: numBuf, left: SIDE_IMG_WIDTH, top: 0 },
+          { input: sideImgResized, left: SIDE_IMG_WIDTH + svgW, top: 0 },
+        ])
+        .png()
+        .toBuffer();
+
+      await printer.image(composite, { align: 'center', width: TOTAL_PRINTER_WIDTH });
+      printer.feed(1);
+    } catch (err) {
+      console.error("Errore generazione blocco grafico numero:", err);
+    }
+  }
 }
 
 function loadLogoBuffer(logoPath) {
@@ -189,24 +245,21 @@ async function renderHeader(printer, { title, orderId, timestamp, logoPath, show
   printer.align("CT").style("NORMAL").text(ASSOCIAZIONE_CF);
   printer.align("CT").text(DIVIDER_THIN);
 
+  // 1. Stampa il titolo (es. "DOCUMENTO NON FISCALE" o "*** COPIA OMAGGIO... ***")
   printer.align("CT").style("B").text(title).style("NORMAL");
-  if (subtitle) {
-    printer.align("CT").text(DIVIDER_THIN);
+
+  // 2. Forza il separatore subito sotto il titolo, valido per la copia customer
+  printer.align("CT").text(DIVIDER_THIN);
+
+  // 3. Se c'è un sottotitolo testuale (solo per copie che non hanno il banner nero)
+  if (subtitle && !pickupStatus) {
     printer.align("CT").style("B").text(subtitle).style("NORMAL");
     printer.align("CT").text(DIVIDER_THIN);
   }
 
+  // 4. Stampa il rettangolo nero nativo (per Gastronomia e Bar). 
+  // Il comando nativo del banner sovrascrive lo stile e si piazza perfettamente sotto.
   printPickupBanner(printer, pickupStatus, subtitle);
-
-  // Ordine progressivo: sempre visibile. Data/ora: solo se showTimestamp è true.
-  if (showTimestamp) {
-    const ts = new Date(timestamp);
-    printer.align("LT").text(rowLR(`Ordine: #${orderId}`, ts.toLocaleTimeString("it-IT")));
-    printer.align("LT").text(`Data: ${ts.toLocaleDateString("it-IT", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}`);
-  } else {
-    printer.align("LT").text(`Ordine: #${orderId}`);
-  }
-  printer.align("CT").text(DIVIDER_THIN);
 }
 
 function renderItems(printer, items, layoutType = "standard", bigFont = false) {
@@ -287,7 +340,7 @@ function printPickupBanner(printer, status, subtitle = "") {
 async function renderFooter(printer, { total, QRcode, showTotal = false, showQR = false }) {
   if (showTotal && total !== null && total !== undefined) {
     printer.align("CT").style("B").text("TOTALE CONTRIBUTO VOLONTARIO").style("NORMAL");
-    printer.align("RT").style("B").size(2, 2).text(`€ ${parseFloat(total).toFixed(2)}`).size(1, 1).style("NORMAL");
+    printer.align("CT").style("B").size(2, 2).text(`€ ${parseFloat(total).toFixed(2)}`).size(1, 1).style("NORMAL");
     printer.align("CT").text(DIVIDER_THIN);
 
     printer.align("CT").text("Raccolta fondi occasionale ai");
@@ -342,8 +395,24 @@ export async function renderKitchenEscpos(printer, orderData, logoPath, showLogo
 export async function renderGastronomyEscpos(printer, orderData, logoPath, showLogo = false, showTimestamp = false) {
   const items = filterItems(orderData.items, "kitchen");
   if (!items.length) return;
+
+  // Immagine in alto con il numero dell'ordine pulito
+  await renderTopHeaderImage(printer, orderData.id);
+
   const ts = new Date(orderData.created_at || Date.now());
-  await renderHeader(printer, { title: "*** COPIA OMAGGIO GASTRONOMICO ***", orderId: orderData.id, timestamp: ts, logoPath, showLogo, pickupStatus: "valid", showTimestamp });
+
+  // Passiamo "RITIRO CUCINA" per il banner nero nativo
+  await renderHeader(printer, {
+    title: "*** COPIA OMAGGIO GASTRONOMICO ***",
+    orderId: orderData.id,
+    timestamp: ts,
+    logoPath,
+    showLogo: false,
+    subtitle: "RITIRO CUCINA",
+    pickupStatus: "valid",
+    showTimestamp
+  });
+
   renderItems(printer, items, "gastronomy", true);
   await renderFooter(printer, { QRcode: encodeOrderId(orderData.id, ts), showQR: false });
 }
@@ -351,19 +420,35 @@ export async function renderGastronomyEscpos(printer, orderData, logoPath, showL
 export async function renderBarEscpos(printer, orderData, logoPath, showLogo = true, showTimestamp = false) {
   const items = filterItems(orderData.items, "bar");
   if (!items.length) return;
+
+  // Immagine in alto con il numero dell'ordine pulito
+  await renderTopHeaderImage(printer, orderData.id);
+
   const ts = new Date(orderData.created_at || Date.now());
-  await renderHeader(printer, { title: "*** COPIA OMAGGIO BAR ***", orderId: orderData.id, timestamp: ts, logoPath, showLogo, pickupStatus: "valid", showTimestamp });
+
+  // Passiamo "RITIRO BAR" per il banner nero nativo
+  await renderHeader(printer, {
+    title: "*** COPIA OMAGGIO BAR ***",
+    orderId: orderData.id,
+    timestamp: ts,
+    logoPath,
+    showLogo: false,
+    subtitle: "RITIRO BAR",
+    pickupStatus: "valid",
+    showTimestamp
+  });
+
   renderItems(printer, items, "bar", true);
   await renderFooter(printer, { QRcode: encodeOrderId(orderData.id, ts), showQR: false });
 }
 
 export const templatesEscpos = {
+  "Numeretto": renderNumberSlip,
   Cliente: renderCustomerEscpos,
   Associazione: renderAssociationEscpos,
   Cucina: renderKitchenEscpos,
   "Ritiro Gastronomia": renderGastronomyEscpos,
-  "Ritiro Bar": renderBarEscpos,
-  "Numeretto": renderNumberSlip,
+  "Ritiro Bar": renderBarEscpos
 };
 
 // Risolve un singolo "setting" di stampa in: funzione template + destinazione fisica.
