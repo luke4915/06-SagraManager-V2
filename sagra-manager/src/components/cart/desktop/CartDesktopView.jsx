@@ -38,12 +38,13 @@ const CartDesktopView = ({
 
                     {/* Pulsante Asporto */}
                     <button
+                        disabled={cart.length === 0}
                         onClick={() => setIsTakeaway(v => !v)}
                         title={isTakeaway ? 'Disattiva asporto' : 'Segna come asporto'}
-                        className={`p-2 rounded-xl border transition-all ${isTakeaway
+                        className={`p-2 rounded-xl border transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 ${isTakeaway
                             ? 'bg-green-500 border-green-500 text-white'
                             : 'border-[var(--border)] text-[var(--text-muted)] hover:text-green-500 hover:border-green-500/50'}`}>
-                        <ShoppingBag size={20} />
+                        <ShoppingBag size={24} />
                     </button>
 
                     {/* Pulsante Regalo / Omaggio */}
@@ -56,7 +57,7 @@ const CartDesktopView = ({
                             : 'border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]/50'
                             }`}
                     >
-                        <Gift size={20} />
+                        <Gift size={24} />
                     </button>
 
                     {/* Pulsante QR Code */}
@@ -65,7 +66,7 @@ const CartDesktopView = ({
                         title="Importa ordine da QR"
                         className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]/50 transition-all duration-200 active:scale-95 cursor-pointer"
                     >
-                        <QrCode size={20} />
+                        <QrCode size={24} />
                     </button>
 
                     {/* Pulsante Ristampa Stampante */}
@@ -75,7 +76,7 @@ const CartDesktopView = ({
                         title="Ristampa scontrini recenti"
                         className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]/50 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                     >
-                        <Printer size={20} />
+                        <Printer size={24} />
                     </button>
                 </div>
             </div>

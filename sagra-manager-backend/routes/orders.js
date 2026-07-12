@@ -301,7 +301,13 @@ export default function (broadcast) {
         'SELECT name FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
       );
       await printOrder(
-        { id: order.id, created_at: order.created_at, items: safeParseJSON(order.items), total: parseFloat(order.total) },
+        {
+          id: order.id,
+          created_at: order.created_at,
+          items: safeParseJSON(order.items),
+          total: parseFloat(order.total),
+          is_takeaway: order.is_takeaway
+        },
         sessionRows[0]?.name || 'Serata'
       );
       res.json({ success: true });

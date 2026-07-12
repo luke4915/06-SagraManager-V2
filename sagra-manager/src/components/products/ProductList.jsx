@@ -64,7 +64,7 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 10 }) => {
                   onClick={() => addToCart(product)}
                   onMouseEnter={(e) => e.currentTarget.style.setProperty('--bg-opacity', '12%')}
                   onMouseLeave={(e) => e.currentTarget.style.setProperty('--bg-opacity', '6%')}
-                  className="relative flex flex-col rounded-xl pt-4 px-4 pb-2 border-l-4 bg-[var(--bg-card-2)] border border-[var(--border)] hover:border-[var(--text-muted)]/30 active:scale-95 transition-all duration-150 text-left overflow-hidden"
+                  className="relative flex flex-col rounded-xl pt-4 px-3 pb-2 border-l-4 bg-[var(--bg-card-2)] cursor-pointer border border-[var(--border)] hover:border-[var(--text-muted)]/30 active:scale-95 transition-all duration-150 text-left overflow-hidden"
                   style={{
                     borderLeftColor: color,
                     backgroundColor: `color-mix(in srgb, ${color} var(--bg-opacity, 6%), var(--bg-card-2))`
@@ -80,7 +80,12 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 10 }) => {
                         <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shadow-[0_0_4px_rgba(255,255,255,0.8)]"></span>
                       )}
                       <span className="text-[9px] font-black uppercase tracking-widest mt-px">
-                        {remainingStock === 0 ? 'Esaurito' : `Ultimi ${remainingStock}`}
+                        {remainingStock === 0
+                          ? 'Esaurito'
+                          : remainingStock === 1
+                            ? 'Ultimo!'
+                            : `Ultimi ${remainingStock}`
+                        }
                       </span>
                     </div>
                   )}

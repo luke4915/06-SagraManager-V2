@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { GripVertical, Wifi, Usb, Pencil, Trash2, Plus, X, Printer } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -11,14 +12,28 @@ const PrintProfiles = () => {
   const [settings, setSettings] = useState([]);
   const [usbPrinters, setUsbPrinters] = useState([]);
   const [copyTypes, setCopyTypes] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(null);
   const [error, setError] = useState(null);
   const [modal, setModal] = useState(null); // null | 'new' | { id, name, label }
   const [confirmDelete, setConfirmDelete] = useState(null);
 
+  // ─── Drag & drop via Pointer Events ─────────────────────────────
+  // A differenza dell'HTML5 Drag&Drop (draggable/onDragStart/onDrop),
+  // i Pointer Events funzionano in modo identico con mouse, touch e penna:
+  // niente comportamento inconsistente su tablet/smartphone.
+  const itemRefs = useRef(new Map());
+  const dragInfo = useRef(null); // { id, pointerId, lastY }
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+
+  const [draggingId, setDraggingId] = useState(null);
+  const [dragOffset, setDragOffset] = useState(0);
+
   useEffect(() => { fetchAll(); }, []);
 
   const fetchAll = async () => {
+    setLoading(true);
     try {
       const [sRes, pRes, ctRes] = await Promise.all([
         fetch(`${API_URL}/print-settings`, { credentials: 'include' }),
@@ -30,6 +45,8 @@ const PrintProfiles = () => {
       if (ctRes.ok) setCopyTypes(await ctRes.json());
     } catch (err) {
       setError('Errore caricamento impostazioni');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -55,10 +72,8 @@ const PrintProfiles = () => {
     }
   };
 
-  const handleReorder = async (newSettings) => {
-    const originalSettings = [...settings];
-    // Aggiornamento ottimistico dell'UI per immediatezza visiva
-    setSettings(newSettings);
+  const persistOrder = useCallback(async (newSettings) => {
+    const originalSettings = settingsRef.current;
     try {
       const res = await fetch(`${API_URL}/print-settings/reorder`, {
         method: 'POST',
@@ -69,26 +84,60 @@ const PrintProfiles = () => {
       if (!res.ok) throw new Error('Errore nel salvataggio del nuovo ordine');
     } catch (err) {
       setError(err.message);
-      setSettings(originalSettings); // Rollback in caso di errore di rete
+      setSettings(originalSettings); // rollback in caso di errore di rete
+    }
+  }, []);
+
+  // ─── Pointer handlers (maniglia = unico punto di innesco) ───────
+  const handlePointerDown = (id) => (e) => {
+    if (!isAdmin) return;
+    e.preventDefault();
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
+    dragInfo.current = { id, pointerId: e.pointerId, lastY: e.clientY };
+    setDraggingId(id);
+    setDragOffset(0);
+  };
+
+  const handlePointerMove = (e) => {
+    if (!dragInfo.current || dragInfo.current.id == null) return;
+    const { id, lastY } = dragInfo.current;
+    const deltaY = e.clientY - lastY;
+    setDragOffset(prev => prev + deltaY);
+    dragInfo.current.lastY = e.clientY;
+
+    const current = settingsRef.current;
+    const currentIndex = current.findIndex(s => s.id === id);
+    const draggedEl = itemRefs.current.get(id);
+    if (currentIndex === -1 || !draggedEl) return;
+
+    let targetIndex = currentIndex;
+    current.forEach((s, idx) => {
+      if (s.id === id) return;
+      const el = itemRefs.current.get(s.id);
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const center = rect.top + rect.height / 2;
+      if (idx < currentIndex && e.clientY < center) targetIndex = Math.min(targetIndex, idx);
+      if (idx > currentIndex && e.clientY > center) targetIndex = Math.max(targetIndex, idx);
+    });
+
+    if (targetIndex !== currentIndex) {
+      setSettings(prev => {
+        const arr = [...prev];
+        const [moved] = arr.splice(currentIndex, 1);
+        arr.splice(targetIndex, 0, moved);
+        return arr;
+      });
     }
   };
 
-  const moveUp = (index) => {
-    if (index === 0) return;
-    const newSettings = [...settings];
-    const temp = newSettings[index];
-    newSettings[index] = newSettings[index - 1];
-    newSettings[index - 1] = temp;
-    handleReorder(newSettings);
-  };
-
-  const moveDown = (index) => {
-    if (index === settings.length - 1) return;
-    const newSettings = [...settings];
-    const temp = newSettings[index];
-    newSettings[index] = newSettings[index + 1];
-    newSettings[index + 1] = temp;
-    handleReorder(newSettings);
+  const handlePointerUp = () => {
+    if (!dragInfo.current) return;
+    dragInfo.current = null;
+    setDraggingId(null);
+    setDragOffset(0);
+    persistOrder(settingsRef.current);
   };
 
   const createCopyType = async ({ name, label }) => {
@@ -136,130 +185,156 @@ const PrintProfiles = () => {
 
   return (
     <div className="mt-6 p-6 rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] shadow-sm">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
-          Impostazioni di stampa
-        </h2>
+      <div className="flex items-center justify-between mb-1">
+        <div>
+          <h2 className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
+            Impostazioni di stampa
+          </h2>
+          <p className="text-[11px] text-[var(--text-muted)] mt-1">
+            {isAdmin ? 'Tieni premuta la maniglia e trascina per definire l\'ordine di stampa.' : 'Configurazione gestita dall\'amministratore.'}
+          </p>
+        </div>
         {isAdmin && availableTemplates.length > 0 && (
           <button
             onClick={() => setModal('new')}
-            className="px-3 py-1.5 text-xs rounded-xl bg-[var(--accent)] text-white font-bold hover:bg-[var(--accent-hover)] transition"
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl bg-[var(--accent)] text-white font-bold hover:bg-[var(--accent-hover)] transition"
           >
-            + Tipo copia
+            <Plus size={14} /> Tipo copia
           </button>
         )}
       </div>
 
       {error && (
-        <div className="mb-4 px-4 py-2 rounded-xl bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 text-xs">
-          {error}
+        <div className="mt-4 flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-bold">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="shrink-0 hover:opacity-70"><X size={13} /></button>
         </div>
       )}
 
-      {settings.length === 0 ? (
-        <p className="text-sm text-[var(--text-muted)]">
+      {loading ? (
+        <p className="text-sm text-[var(--text-muted)] mt-6">Caricamento...</p>
+      ) : settings.length === 0 ? (
+        <p className="text-sm text-[var(--text-muted)] mt-6">
           Nessun tipo di copia configurato.{isAdmin ? ' Aggiungine uno.' : ''}
         </p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {settings.map((s, index) => (
-            <div key={s.id} className="flex flex-col gap-3 p-4 rounded-2xl bg-[var(--bg-card-2)] border border-[var(--border)]">
-
-              {/* Header */}
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  {/* Pulsanti Su/Giù per l'ordinamento se admin */}
+        <div className="mt-5 flex flex-col gap-2.5">
+          {settings.map((s, index) => {
+            const isDragging = draggingId === s.id;
+            return (
+              <div
+                key={s.id}
+                ref={el => { if (el) itemRefs.current.set(s.id, el); else itemRefs.current.delete(s.id); }}
+                style={isDragging ? {
+                  transform: `translateY(${dragOffset}px)`,
+                  zIndex: 20,
+                  boxShadow: '0 12px 28px rgba(0,0,0,0.25)',
+                } : undefined}
+                className={`flex flex-col sm:flex-row sm:items-center gap-3 p-3.5 rounded-2xl border transition-colors
+                  ${isDragging ? 'border-[var(--accent)] bg-[var(--bg-card)] scale-[1.01]' : 'border-[var(--border)] bg-[var(--bg-card-2)]'}`}
+              >
+                {/* Maniglia + posizione + nome */}
+                <div className="flex items-center gap-3 flex-1 min-w-0">
                   {isAdmin && (
-                    <div className="flex flex-col gap-0.5 mr-1 bg-[var(--bg-card)] p-1 rounded-lg border border-[var(--border)]">
-                      <button
-                        disabled={index === 0}
-                        onClick={() => moveUp(index)}
-                        className="text-[10px] px-1 font-bold text-[var(--text-main)] hover:bg-[var(--bg-card-2)] rounded disabled:opacity-20 disabled:pointer-events-none"
-                      >
-                        ▲
-                      </button>
-                      <button
-                        disabled={index === settings.length - 1}
-                        onClick={() => moveDown(index)}
-                        className="text-[10px] px-1 font-bold text-[var(--text-main)] hover:bg-[var(--bg-card-2)] rounded disabled:opacity-20 disabled:pointer-events-none"
-                      >
-                        ▼
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      aria-label="Trascina per riordinare"
+                      onPointerDown={handlePointerDown(s.id)}
+                      onPointerMove={handlePointerMove}
+                      onPointerUp={handlePointerUp}
+                      onPointerCancel={handlePointerUp}
+                      style={{ touchAction: 'none' }}
+                      className={`shrink-0 w-9 h-9 flex items-center justify-center rounded-xl text-[var(--text-muted)] border border-transparent select-none
+                        ${isDragging ? 'bg-[var(--accent)]/10 border-[var(--accent)]/30 text-[var(--accent)] cursor-grabbing' : 'hover:bg-[var(--bg-card)] hover:text-[var(--text-main)] cursor-grab'}`}
+                    >
+                      <GripVertical size={18} />
+                    </button>
                   )}
-                  <div>
-                    <span className="font-black text-sm uppercase tracking-tight text-[var(--text-main)]">
+                  <span className="shrink-0 w-6 h-6 flex items-center justify-center rounded-lg bg-[var(--accent)]/10 text-[var(--accent)] text-[11px] font-black">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="font-black text-xs uppercase tracking-tight text-[var(--text-main)] truncate">
                       {s.copy_type_label}
-                    </span>
-                    <span className="ml-2 text-[10px] text-[var(--text-muted)]">({s.copy_type_name})</span>
+                    </p>
+                    <p className="text-[10px] text-[var(--text-muted)] truncate">{s.copy_type_name}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+
+                {/* Connessione stampante */}
+                <div className={`flex flex-wrap items-center gap-2 sm:flex-1 transition-opacity ${!s.enabled ? 'opacity-40 pointer-events-none' : ''}`}>
+                  <div className="flex rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-0.5 shrink-0">
+                    <button
+                      disabled={!isAdmin || saving === s.id}
+                      onClick={() => updateSetting(s.id, { printer_type: 'network', printer_address: '' })}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${s.printer_type === 'network' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-muted)]'}`}
+                    >
+                      <Wifi size={12} /> Rete
+                    </button>
+                    <button
+                      disabled={!isAdmin || saving === s.id}
+                      onClick={() => updateSetting(s.id, { printer_type: 'usb', printer_address: '' })}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${s.printer_type === 'usb' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-muted)]'}`}
+                    >
+                      <Usb size={12} /> USB
+                    </button>
+                  </div>
+
+                  {s.printer_type === 'network' ? (
+                    <input
+                      type="text"
+                      placeholder="192.168.1.100:9100"
+                      value={s.printer_address || ''}
+                      disabled={!isAdmin || saving === s.id}
+                      onChange={e => setSettings(prev => prev.map(x => x.id === s.id ? { ...x, printer_address: e.target.value } : x))}
+                      onBlur={e => updateSetting(s.id, { printer_address: e.target.value })}
+                      className="flex-1 min-w-[150px] px-3 py-1.5 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-xs outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:cursor-not-allowed"
+                    />
+                  ) : (
+                    <select
+                      value={s.printer_address || ''}
+                      disabled={!isAdmin || saving === s.id}
+                      onChange={e => updateSetting(s.id, { printer_address: e.target.value })}
+                      className="flex-1 min-w-[150px] px-3 py-1.5 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-xs outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:cursor-not-allowed"
+                    >
+                      <option value="">Seleziona stampante USB</option>
+                      {usbPrinters.map(p => (
+                        <option key={p.name} value={p.name}>{p.name}{p.isDefault ? ' (default)' : ''}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {/* Azioni + toggle */}
+                <div className="flex items-center gap-2 shrink-0 justify-end">
+                  {saving === s.id && <span className="text-[10px] text-[var(--text-muted)]">Salvataggio...</span>}
                   {isAdmin && (
                     <>
                       <button onClick={() => setModal({ id: s.copy_type_id, name: s.copy_type_name, label: s.copy_type_label })}
-                        className="text-xs text-[var(--accent)] hover:underline">Rinomina</button>
+                        title="Rinomina"
+                        className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent)]/10 transition-colors">
+                        <Pencil size={13} />
+                      </button>
                       <button onClick={() => setConfirmDelete(s.copy_type_id)}
-                        className="text-xs text-red-400 hover:underline">Elimina</button>
+                        title="Elimina"
+                        className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors">
+                        <Trash2 size={13} />
+                      </button>
                     </>
                   )}
-                  {/* Toggle */}
                   <label className={`relative inline-flex items-center ${!isAdmin ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
                     <input type="checkbox" className="sr-only peer"
                       checked={s.enabled}
                       disabled={!isAdmin || saving === s.id}
                       onChange={e => updateSetting(s.id, { enabled: e.target.checked })}
                     />
-                    <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 rounded-full peer peer-checked:bg-[var(--accent)] transition"></div>
-                    <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow transform peer-checked:translate-x-5 transition"></div>
+                    <div className="w-10 h-5.5 bg-gray-200 dark:bg-gray-700 rounded-full peer peer-checked:bg-[var(--accent)] transition"></div>
+                    <div className="absolute left-1 top-1 w-3.5 h-3.5 bg-white rounded-full shadow transform peer-checked:translate-x-4 transition"></div>
                   </label>
                 </div>
               </div>
-
-              {/* Tipo connessione + indirizzo */}
-              <div className={`flex flex-col gap-2 transition-opacity ${!s.enabled ? 'opacity-40 pointer-events-none' : ''}`}>
-                <div className="flex gap-4">
-                  {['network', 'usb'].map(type => (
-                    <label key={type} className={`flex items-center gap-1.5 text-xs ${isAdmin ? 'cursor-pointer' : 'cursor-default'}`}>
-                      <input type="radio" name={`type-${s.id}`} value={type}
-                        checked={s.printer_type === type}
-                        disabled={!isAdmin || saving === s.id}
-                        onChange={() => updateSetting(s.id, { printer_type: type, printer_address: '' })}
-                        className="accent-[var(--accent)]"
-                      />
-                      <span className="text-[var(--text-main)]">{type === 'network' ? 'Rete (IP)' : 'USB'}</span>
-                    </label>
-                  ))}
-                </div>
-
-                {s.printer_type === 'network' ? (
-                  <input
-                    type="text"
-                    placeholder="192.168.1.100:9100"
-                    value={s.printer_address || ''}
-                    disabled={!isAdmin || saving === s.id}
-                    onChange={e => setSettings(prev => prev.map(x => x.id === s.id ? { ...x, printer_address: e.target.value } : x))}
-                    onBlur={e => updateSetting(s.id, { printer_address: e.target.value })}
-                    className="px-3 py-2 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:cursor-not-allowed"
-                  />
-                ) : (
-                  <select
-                    value={s.printer_address || ''}
-                    disabled={!isAdmin || saving === s.id}
-                    onChange={e => updateSetting(s.id, { printer_address: e.target.value })}
-                    className="px-3 py-2 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:cursor-not-allowed"
-                  >
-                    <option value="">Seleziona stampante USB</option>
-                    {usbPrinters.map(p => (
-                      <option key={p.name} value={p.name}>{p.name}{p.isDefault ? ' (default)' : ''}</option>
-                    ))}
-                  </select>
-                )}
-                {saving === s.id && <span className="text-xs text-[var(--text-muted)]">Salvataggio...</span>}
-              </div>
-
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -298,8 +373,8 @@ const CopyTypeModal = ({ initial, templatesOptions, onSave, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
       <div className="bg-[var(--bg-card)] rounded-2xl shadow-xl p-6 w-full max-w-sm border border-[var(--border)]">
-        <h3 className="font-black text-sm uppercase tracking-widest text-[var(--text-muted)] mb-4">
-          {initial ? 'Modifica tipo copia' : 'Nuovo tipo copia'}
+        <h3 className="font-black text-sm uppercase tracking-widest text-[var(--text-muted)] mb-4 flex items-center gap-2">
+          <Printer size={14} /> {initial ? 'Modifica tipo copia' : 'Nuovo tipo copia'}
         </h3>
         <div className="flex flex-col gap-3">
           <div>

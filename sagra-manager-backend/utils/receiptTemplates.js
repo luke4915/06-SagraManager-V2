@@ -367,11 +367,11 @@ async function renderFooter(printer, { total, QRcode, showTotal = false, showQR 
 export async function renderCustomerEscpos(printer, orderData, logoPath, showLogo = false, showTimestamp = false) {
   const ts = new Date(orderData.created_at);
   await renderHeader(printer, { title: "DOCUMENTO NON FISCALE", subtitle: "COPIA BENEFICIARIO", orderId: orderData.id, timestamp: ts, logoPath, showLogo, pickupStatus: "invalid", showTimestamp });
+  renderItems(printer, orderData.items, "customer");
   if (orderData.is_takeaway) {
     printer.align('CT').style('B').text('[ DA ASPORTO ]').style('NORMAL');
     printer.align('CT').text(DIVIDER_THIN);
   }
-  renderItems(printer, orderData.items, "customer");
   await renderFooter(printer, { total: orderData.total, QRcode: encodeOrderId(orderData.id, ts), showTotal: true, showQR: false });
 }
 

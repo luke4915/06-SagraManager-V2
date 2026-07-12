@@ -264,10 +264,11 @@ const App = () => {
 
   if (loading) return <div className="h-screen flex items-center justify-center bg-[var(--bg-main)] text-[var(--text-main)]">Caricamento...</div>;
 
+  if (window.location.pathname === '/kds') return <KDS />;
+
   if (!user) return (
     <Routes>
       <Route path="/login" element={<Login onLogin={login} />} />
-      <Route path="/kds" element={<KDS />} />
       <Route path="/menu" element={<MenuPage />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
