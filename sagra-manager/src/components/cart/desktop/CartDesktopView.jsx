@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingCart, Check, Printer, MessageSquare, Gift } from 'lucide-react';
+import { ShoppingCart, Check, Printer, MessageSquare, Gift, QrCode } from 'lucide-react';
 
 const CartDesktopView = ({
     // Props passate dal Container padre
@@ -27,28 +27,42 @@ const CartDesktopView = ({
             {/* Header */}
             <div className="px-5 py-3 flex justify-between items-center border-b border-[var(--border)]">
                 <div>
-                    <h2 className="text-base font-black tracking-tighter uppercase text-[var(--text-main)]">Carrello</h2>
-                    <span className={`text-[9px] font-black uppercase tracking-widest ${sessionActive ? 'text-green-500' : 'text-red-400'}`}>
+                    <h2 className="text-xl font-black tracking-tighter uppercase text-[var(--text-main)]">Carrello</h2>
+                    <span className={`text-[11px] font-black uppercase tracking-widest ${sessionActive ? 'text-green-500' : 'text-red-400'}`}>
                         {sessionActive ? '● Sessione attiva' : '● Sessione non attiva'}
                     </span>
                 </div>
                 <div className="flex items-center gap-2">
+                    {/* Pulsante Regalo / Omaggio */}
                     <button
+                        disabled={cart.length === 0}
                         onClick={() => toggleOrderType(v => !v)}
-                        title={isAllGift ? "Disattiva omaggio" : "Segna come omaggio (totale €0)"}
-                        className={`p-2 rounded-xl border transition-all ${isAllGift ? 'bg-purple-500 border-purple-500 text-white' : 'border-[var(--border)] text-[var(--text-muted)] hover:text-purple-500 hover:border-purple-500/50'}`}>
-                        <Gift size={16} />
+                        title={cart.length === 0 ? "Aggiungi articoli al carrello" : (isAllGift ? "Disattiva omaggio" : "Segna come omaggio")}
+                        className={`p-2 rounded-xl border transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 ${isAllGift && cart.length > 0
+                            ? 'bg-[var(--accent)] border-[var(--accent)] text-white hover:bg-[var(--accent)]/90'
+                            : 'border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]/50'
+                            }`}
+                    >
+                        <Gift size={18} />
                     </button>
-                    <button onClick={() => setIsQRScanModalOpen(true)} title="Importa ordine da QR"
-                        className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]/50 transition-all">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.875 15.75a1.125 1.125 0 1 0-2.25 0 1.125 1.125 0 0 0 2.25 0ZM19.5 13.5a1.125 1.125 0 1 1-2.25 0 1.125 1.125 0 0 1 2.25 0ZM13.5 19.5a1.125 1.125 0 1 1 2.25 0 1.125 1.125 0 0 1-2.25 0ZM19.5 19.5a1.125 1.125 0 1 1-2.25 0 1.125 1.125 0 0 1 2.25 0Z" />
-                        </svg>
+
+                    {/* Pulsante QR Code */}
+                    <button
+                        onClick={() => setIsQRScanModalOpen(true)}
+                        title="Importa ordine da QR"
+                        className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]/50 transition-all duration-200 active:scale-95 cursor-pointer"
+                    >
+                        <QrCode size={18} />
                     </button>
-                    <button onClick={() => setIsReprintModalOpen(true)} title="Ristampa scontrini recenti"
-                        className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]/50 transition-all">
-                        <Printer size={16} />
+
+                    {/* Pulsante Ristampa Stampante */}
+                    <button
+                        disabled={!sessionActive || !hasOrders} // Qui ho pre-impostato la logica di blocco di cui parlavamo!
+                        onClick={() => setIsReprintModalOpen(true)}
+                        title="Ristampa scontrini recenti"
+                        className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]/50 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+                    >
+                        <Printer size={18} />
                     </button>
                 </div>
             </div>
@@ -58,7 +72,7 @@ const CartDesktopView = ({
                 {mergedCart.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)] opacity-30">
                         <ShoppingCart size={32} />
-                        <p className="text-[10px] font-black uppercase tracking-widest mt-2">Vuoto</p>
+                        <p className="text-sm text-center font-black uppercase tracking-widest mt-2">Vuoto</p>
                     </div>
                 ) : mergedCart.map(item => (
                     <div key={cartKey(item)} onClick={() => setSelectedItem(item)}
@@ -84,13 +98,25 @@ const CartDesktopView = ({
             <div className="px-4 py-3 border-t border-[var(--border)] space-y-2 bg-[var(--bg-card-2)]">
                 <div className="grid grid-cols-2 gap-2">
                     <div className="bg-[var(--bg-card)] px-3 py-1.5 rounded-xl border border-[var(--border)]">
-                        <span className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-wider block">Ricevuti</span>
-                        <input type="text" value={amountReceived} onChange={e => setAmountReceived(e.target.value)} placeholder="0.00"
-                            className="w-full bg-transparent outline-none font-black text-base text-[var(--text-main)] tabular-nums text-right" />
+                        <span className="text-[11px] font-black text-[var(--text-muted)] uppercase tracking-wider block">Ricevuti</span>
+                        <input
+                            type="text"
+                            inputMode="decimal" // Ottimizza la tastiera sui dispositivi mobile (mostra subito i numeri e il punto)
+                            value={amountReceived}
+                            onChange={e => {
+                                const val = e.target.value;
+                                // Questa regex permette solo numeri e un singolo punto seguito da massimo 2 cifre
+                                if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                                    setAmountReceived(val);
+                                }
+                            }}
+                            placeholder="0.00"
+                            className="w-full bg-transparent outline-none font-black text-xl text-[var(--text-main)] tabular-nums text-right"
+                        />
                     </div>
                     <div className="bg-[var(--bg-card)] px-3 py-1.5 rounded-xl border border-[var(--border)]">
-                        <span className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-wider block">Resto</span>
-                        <span className={`text-base font-black tabular-nums block text-right ${change < 0 ? 'text-red-500' : 'text-green-500'}`}>
+                        <span className="text-[11px] font-black text-[var(--text-muted)] uppercase tracking-wider block">Resto</span>
+                        <span className={`text-xl font-black tabular-nums block text-right ${change < 0 ? 'text-red-500' : 'text-green-500'}`}>
                             {change >= 0 ? change.toFixed(2) : '0.00'} €
                         </span>
                     </div>
@@ -98,7 +124,7 @@ const CartDesktopView = ({
 
                 <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                        <span className="text-sm font-black text-[var(--text-main)] uppercase tracking-widest">Totale</span>
+                        <span className="text-xl font-black text-[var(--text-main)] uppercase tracking-widest">Totale</span>
                         {isAllGift && <span className="text-[9px] font-black uppercase tracking-widest bg-purple-500/10 text-purple-500 border border-purple-500/30 px-2 py-0.5 rounded-full">Omaggio</span>}
                     </div>
                     {isAllGift ? (
@@ -113,17 +139,17 @@ const CartDesktopView = ({
 
                 <button onClick={handleSendOrder}
                     disabled={cart.length === 0 || !sessionActive || !wsConnected}
-                    className="w-full h-11 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:bg-[var(--bg-input)] disabled:text-[var(--text-muted)] text-white rounded-xl font-black text-xs uppercase tracking-widest active:scale-[0.99] transition-all flex items-center justify-center gap-2">
-                    <Check size={15} /> Invia Ordine
+                    className="w-full h-11 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:bg-[var(--bg-input)] disabled:text-[var(--text-muted)] disabled:hover:cursor-not-allowed text-white rounded-xl font-black text-base uppercase tracking-widest active:scale-[0.99] transition-all flex items-center justify-center gap-2">
+                    <Check size={18} /> Invia Ordine
                 </button>
 
                 <div className="grid grid-cols-2 gap-2">
                     <button onClick={() => cart.length > 0 && setIsClearModalOpen(true)} disabled={cart.length === 0}
-                        className="h-9 border border-red-300 dark:border-red-900/40 text-red-500 hover:bg-red-500 hover:text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all disabled:opacity-30">
+                        className="h-9 border border-red-300 dark:border-red-900/40 text-red-500 hover:bg-red-500 hover:text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-30">
                         Svuota
                     </button>
                     {children && (
-                        <div className="[&>*]:w-full [&>*]:h-9 [&>*]:rounded-xl [&>*]:font-black [&>*]:text-[10px] [&>*]:uppercase [&>*]:tracking-widest [&>*]:transition-all [&>*]:flex [&>*]:items-center [&>*]:justify-center [&>*]:gap-1">
+                        <div className="[&>*]:w-full [&>*]:h-9 [&>*]:rounded-xl [&>*]:font-black [&>*]:text-xs [&>*]:uppercase [&>*]:tracking-widest [&>*]:transition-all [&>*]:flex [&>*]:items-center [&>*]:justify-center [&>*]:gap-1">
                             {children}
                         </div>
                     )}

@@ -61,13 +61,13 @@ const Login = ({ onLogin }) => {
 
       {/* LOGO */}
       <img
-        src="/logo_SagraManager_ESC_POS.png"
+        src="/logo_StandManager_ESC_POS.png"
         alt="Logo"
         className="w-40 mb-6 drop-shadow-md border-2 border-black bg-white p-2"
       />
 
       <h1 className="text-2xl font-black mb-6 text-[var(--text-main)]">
-        Login Sagra Manager V2
+        Login Stand Manager
       </h1>
 
       <div className="flex flex-col gap-4 w-80">

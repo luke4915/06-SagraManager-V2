@@ -15,14 +15,14 @@ const Header = ({ toggleSidebar, currentUser, onLogoutClick, onProfileClick, ses
       </button>
       <div className="flex flex-col">
         <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
-          <span className="hidden sm:inline">Sagra Manager</span>
+          <span className="hidden sm:inline">Stand Manager</span>
           <span className="hidden sm:inline">/</span>
           <span className="font-medium text-[var(--text-main)] truncate max-w-[140px] sm:max-w-none">
             {sessionName || "Dashboard"}
           </span>
         </div>
         <h1 className="text-lg sm:text-2xl font-black tracking-tight text-[var(--text-main)] leading-tight">
-          Sagra Manager
+          Stand Manager
         </h1>
       </div>
     </div>

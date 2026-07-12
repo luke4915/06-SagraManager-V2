@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingCart, Check, Printer, MessageSquare, QrCode, Trash2 } from 'lucide-react';
+import { ShoppingCart, Check, Printer, MessageSquare, QrCode, Trash2, Gift } from 'lucide-react';
 
 const CartMobileView = ({
     onClose,
@@ -17,6 +17,9 @@ const CartMobileView = ({
     setIsQRScanModalOpen,
     setIsReprintModalOpen,
     setIsClearModalOpen,
+    toggleOrderType,
+    isAllGift,
+    hasOrders, // Aggiunta prop allineata al Desktop
     children
 }) => {
 
@@ -28,7 +31,7 @@ const CartMobileView = ({
     };
 
     const handleExactCash = () => {
-        setAmountReceived(total.toFixed(2));
+        setAmountReceived(isAllGift ? '0.00' : total.toFixed(2));
     };
 
     return (
@@ -53,17 +56,32 @@ const CartMobileView = ({
                     </span>
                 </div>
 
-                {/* Pulsanti azione rapidi e grandi (minimo 44x44px per hit-target mobile) */}
+                {/* Pulsanti azione rapidi e grandi */}
                 <div className="flex items-center gap-1.5">
+                    {/* Pulsante Regalo / Omaggio allineato da Desktop */}
+                    <button
+                        disabled={cart.length === 0}
+                        onClick={() => toggleOrderType(v => !v)}
+                        title={cart.length === 0 ? "Aggiungi articoli al carrello" : (isAllGift ? "Disattiva omaggio" : "Segna come omaggio")}
+                        className={`p-3 rounded-xl border transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 min-w-[44px] min-h-[44px] flex items-center justify-center ${isAllGift && cart.length > 0
+                            ? 'bg-[var(--accent)] border-[var(--accent)] text-white'
+                            : 'bg-[var(--bg-card-2)] border-[var(--border)] text-[var(--text-muted)]'
+                            }`}
+                    >
+                        <Gift size={18} />
+                    </button>
+
                     <button
                         onClick={() => setIsQRScanModalOpen(true)}
                         className="p-3 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] active:scale-95 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
                     >
                         <QrCode size={18} />
                     </button>
+
                     <button
+                        disabled={!sessionActive || !hasOrders}
                         onClick={() => setIsReprintModalOpen(true)}
-                        className="p-3 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] active:scale-95 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
+                        className="p-3 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] active:scale-95 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                     >
                         <Printer size={18} />
                     </button>
@@ -120,11 +138,15 @@ const CartMobileView = ({
                         <div className="bg-[var(--bg-card)] px-3 py-2 rounded-xl border border-[var(--border)] flex flex-col justify-center">
                             <span className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-wider">Ricevuti</span>
                             <input
-                                type="number"
-                                pattern="[0-9]*"
+                                type="text"
                                 inputMode="decimal"
                                 value={amountReceived}
-                                onChange={e => setAmountReceived(e.target.value)}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                                        setAmountReceived(val);
+                                    }
+                                }}
                                 placeholder="0.00"
                                 className="w-full bg-transparent outline-none font-black text-lg tabular-nums text-right text-[var(--text-main)]"
                             />
@@ -137,7 +159,7 @@ const CartMobileView = ({
                         </div>
                     </div>
 
-                    {/* Scorciatoie Contanti veloci (Usa i pollici per fare tap su +5, +10, ecc) */}
+                    {/* Scorciatoie Contanti veloci */}
                     <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
                         <button
                             onClick={handleExactCash}
@@ -159,10 +181,20 @@ const CartMobileView = ({
                     </div>
                 </div>
 
-                {/* Totale Economico */}
+                {/* Totale Economico con gestione Omaggio */}
                 <div className="flex justify-between items-center px-1">
-                    <span className="text-xs font-black uppercase tracking-widest text-[var(--text-muted)]">Totale Comanda</span>
-                    <span className="text-3xl font-black tracking-tight text-[var(--accent)] tabular-nums">{total.toFixed(2)} €</span>
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-black uppercase tracking-widest text-[var(--text-muted)]">Totale Comanda</span>
+                        {isAllGift && <span className="text-[9px] font-black uppercase tracking-widest bg-purple-500/10 text-purple-500 border border-purple-500/30 px-2 py-0.5 rounded-full">Omaggio</span>}
+                    </div>
+                    {isAllGift ? (
+                        <div className="flex items-baseline gap-2">
+                            <span className="text-sm font-black line-through text-[var(--text-muted)] tabular-nums">{total.toFixed(2)} €</span>
+                            <span className="text-3xl font-black tracking-tight text-purple-500 tabular-nums">0.00 €</span>
+                        </div>
+                    ) : (
+                        <span className="text-3xl font-black tracking-tight text-[var(--accent)] tabular-nums">{total.toFixed(2)} €</span>
+                    )}
                 </div>
 
                 {/* ACTION BUTTON GIGANTE (Invia Ordine) */}
