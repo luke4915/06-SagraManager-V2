@@ -19,6 +19,21 @@ const ASSOCIAZIONE_CF = "C.F. 90051130608";
 const SIDE_IMG_WIDTH = 125; // Ridotto leggermente per centrare tutto nei 512px max delle stampanti
 const TOTAL_PRINTER_WIDTH = 512; // Larghezza standard perfetta per stampanti termiche da 80mm
 
+let _sideImgBase = null;
+async function getSideImgBase(sideImgPath) {
+  if (_sideImgBase) return _sideImgBase;
+  const sharp = (await import('sharp')).default;
+  const buf = await sharp(sideImgPath).resize({ width: SIDE_IMG_WIDTH }).toBuffer();
+  const meta = await sharp(buf).metadata();
+  const h = (meta.height || 90) + 60;
+  const svgW = TOTAL_PRINTER_WIDTH - (SIDE_IMG_WIDTH * 2);
+  const resized = await sharp(sideImgPath)
+    .resize({ width: SIDE_IMG_WIDTH, height: h, fit: 'contain', background: '#ffffff' })
+    .toBuffer();
+  _sideImgBase = { resized, h, svgW };
+  return _sideImgBase;
+}
+
 export async function renderNumberSlip(printer, orderData, logoPath) {
   const orderId = orderData.id;
   const sideImgPath = path.join(__dirname, '..', 'assets', 'Gemini_Generated_Image_fxfw0dfxfw0dfxfw.png');
@@ -39,15 +54,7 @@ export async function renderNumberSlip(printer, orderData, logoPath) {
     try {
       const sharp = (await import('sharp')).default;
 
-      // Carichiamo l'immagine laterale e scaliamola
-      const sideImg = await sharp(sideImgPath).resize({ width: SIDE_IMG_WIDTH }).toBuffer();
-      const sideMeta = await sharp(sideImg).metadata();
-
-      // 1. Aumentiamo l'altezza 'h' aggiungendo 45px (invece di 25) per fare spazio al font da 50
-      const h = (sideMeta.height || 90) + 60;
-
-      // Calcoliamo lo spazio centrale per far rientrare tutto nei 512px della stampante
-      const svgW = TOTAL_PRINTER_WIDTH - (SIDE_IMG_WIDTH * 2);
+      const { resized: sideImgResized, h, svgW } = await getSideImgBase(sideImgPath);
 
       // 2. Aggiorniamo l'SVG con le nuove coordinate Y
       const svgText = `
@@ -64,11 +71,6 @@ export async function renderNumberSlip(printer, orderData, logoPath) {
         </svg>
       `;
       const numBuf = await sharp(Buffer.from(svgText)).png().toBuffer();
-
-      // Adattiamo anche lo sfondo dell'immagine laterale per allinearlo alla nuova altezza 'h'
-      const sideImgResized = await sharp(sideImgPath)
-        .resize({ width: SIDE_IMG_WIDTH, height: h, fit: 'contain', background: '#ffffff' })
-        .toBuffer();
 
       // Creiamo il nastro unico finale (sfondo bianco in stringa hex per evitare il crash di Sharp)
       const composite = await sharp({
@@ -114,10 +116,7 @@ async function renderTopHeaderImage(printer, orderId) {
     try {
       const sharp = (await import('sharp')).default;
 
-      const sideImg = await sharp(sideImgPath).resize({ width: SIDE_IMG_WIDTH }).toBuffer();
-      const sideMeta = await sharp(sideImg).metadata();
-      const h = (sideMeta.height || 90) + 60;
-      const svgW = TOTAL_PRINTER_WIDTH - (SIDE_IMG_WIDTH * 2);
+      const { resized: sideImgResized, h, svgW } = await getSideImgBase(sideImgPath);
 
       // SVG con la scritta fissa in alto e il numero progressivo pulito sotto
       const svgText = `
@@ -132,10 +131,6 @@ async function renderTopHeaderImage(printer, orderId) {
         </svg>
       `;
       const numBuf = await sharp(Buffer.from(svgText)).png().toBuffer();
-
-      const sideImgResized = await sharp(sideImgPath)
-        .resize({ width: SIDE_IMG_WIDTH, height: h, fit: 'contain', background: '#ffffff' })
-        .toBuffer();
 
       const composite = await sharp({
         create: {
@@ -372,6 +367,10 @@ async function renderFooter(printer, { total, QRcode, showTotal = false, showQR 
 export async function renderCustomerEscpos(printer, orderData, logoPath, showLogo = false, showTimestamp = false) {
   const ts = new Date(orderData.created_at);
   await renderHeader(printer, { title: "DOCUMENTO NON FISCALE", subtitle: "COPIA BENEFICIARIO", orderId: orderData.id, timestamp: ts, logoPath, showLogo, pickupStatus: "invalid", showTimestamp });
+  if (orderData.is_takeaway) {
+    printer.align('CT').style('B').text('[ DA ASPORTO ]').style('NORMAL');
+    printer.align('CT').text(DIVIDER_THIN);
+  }
   renderItems(printer, orderData.items, "customer");
   await renderFooter(printer, { total: orderData.total, QRcode: encodeOrderId(orderData.id, ts), showTotal: true, showQR: false });
 }
@@ -400,6 +399,13 @@ export async function renderGastronomyEscpos(printer, orderData, logoPath, showL
   await renderTopHeaderImage(printer, orderData.id);
 
   const ts = new Date(orderData.created_at || Date.now());
+
+  if (orderData.is_takeaway) {
+    printer.align('CT').reverse(true).size(2, 2).style('B')
+      .text(' DA ASPORTO ')
+      .size(1, 1).style('NORMAL').reverse(false);
+    printer.align('CT').text(DIVIDER_THIN);
+  }
 
   // Passiamo "RITIRO CUCINA" per il banner nero nativo
   await renderHeader(printer, {

@@ -53,6 +53,9 @@ const OrderCard = ({ order }) => {
         <div className={`rounded-2xl p-4 border transition-all ${urgent ? 'bg-red-500/10 border-red-500/40' : 'bg-white/5 border-white/10'}`}>
             <div className="flex justify-between items-center mb-3">
                 <span className="font-black text-xl text-white">#{order.id}</span>
+                {order.is_takeaway && (
+                    <span className="px-2 py-0.5 bg-green-500/10 border border-green-500/30 text-green-500 rounded-full text-[9px] font-black uppercase">Asporto</span>
+                )}
                 <span className={`text-xs font-black tabular-nums ${urgent ? 'text-red-400' : 'text-white/40'}`}>
                     {new Date(order.created_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
                     {urgent && ' ⚠'}

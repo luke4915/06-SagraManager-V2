@@ -390,6 +390,7 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
   const [isReprintModalOpen, setIsReprintModalOpen] = useState(false);
   const [isQRScanModalOpen, setIsQRScanModalOpen] = useState(false);
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
+  const [isTakeaway, setIsTakeaway] = useState(false);
 
   const isMobile = useIsMobile();
 
@@ -427,8 +428,9 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
 
   const handleSendOrder = async () => {
     if (!sessionActive) return;
-    await sendOrder();
+    await sendOrder(isTakeaway);
     setAmountReceived('');
+    setIsTakeaway(false);
   };
 
   const handleQRReplace = (items) => {
@@ -473,7 +475,9 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
     children,
     onClose,
     toggleOrderType,
-    isAllGift
+    isAllGift,
+    isTakeaway,
+    setIsTakeaway
   };
 
   return (

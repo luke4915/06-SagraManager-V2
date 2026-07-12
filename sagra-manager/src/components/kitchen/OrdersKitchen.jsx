@@ -26,6 +26,9 @@ const OrderCard = ({ order, onComplete }) => (
           ? 'line-through text-[var(--text-muted)]'
           : 'text-[var(--text-main)]'
           }`}>#{order.id}</span>
+        {order.is_takeaway && (
+          <span className="px-2 py-0.5 bg-green-500/10 border border-green-500/30 text-green-500 rounded-full text-[9px] font-black uppercase">Asporto</span>
+        )}
         {order.status === 'canceled' && (
           <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/30 text-red-500 rounded-full text-[9px] font-black uppercase">Stornato</span>
         )}

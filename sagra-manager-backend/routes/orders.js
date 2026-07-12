@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { pool } from '../db.js';
 import { authenticate } from '../middleware/authenticate.js';
-import { printESCPosNetwork } from '../utils/receiptTemplates.js';
+import { printOrderBatch } from '../utils/receiptTemplates.js';
 import logger from '../logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 
@@ -44,7 +44,6 @@ async function getDisplayOrderId(orderId, timestamp) {
     const letterIndex = Math.floor((positionInSession - 1) / 100);
     // Converte l'indice in lettera ASCII (65 è il codice di 'A')
     const letter = String.fromCharCode(65 + (letterIndex % 26));
-
     // 4. Calcolo del numero da 1 a 100
     const number = ((positionInSession - 1) % 100) + 1;
 
@@ -82,24 +81,20 @@ async function printOrder(orderData, sessionName) {
   // Calcoliamo il numero progressivo specifico della serata (1-100) da stampare
   const displayId = await getDisplayOrderId(orderData.id, orderData.created_at);
 
-  for (const s of settings) {
-    try {
-      const enrichedOrder = {
-        ...orderData,
-        id: displayId, // Sovrascriviamo l'id reale con quello cortissimo (1-100) per i template di stampa
-        realDbId: orderData.id, // Ci teniamo l'id reale nel caso servisse tracciarlo nei log
-        items: orderData.items.map(i => ({ ...i, print_destination: destMap[i.id] || 'both' })),
-      };
+  const enrichedOrder = {
+    ...orderData,
+    id: displayId,
+    realDbId: orderData.id,
+    items: orderData.items.map(i => ({ ...i, print_destination: destMap[i.id] || 'both' })),
+  };
 
-      logger.info(`[ROUTER ORDERS] Avvio flusso di stampa per copia: ${s.copy_type} su ${s.printer_address}`);
+  logger.info(`[ROUTER ORDERS] Avvio batch stampa: ${settings.map(s => s.copy_type).join(', ')} su ${settings[0]?.printer_address}`);
 
-      // Attendiamo esplicitamente che il socket si apra, scriva e si chiuda prima di passare alla copia successiva
-      await printESCPosNetwork(s, enrichedOrder, sessionName, logoPath);
-
-      logger.info(`[ROUTER ORDERS] Flusso di stampa completato per copia: ${s.copy_type}`);
-    } catch (err) {
-      logger.error({ err }, `Errore stampa [${s.copy_type}]: ${err.message}`);
-    }
+  try {
+    await printOrderBatch(settings, enrichedOrder, logoPath);
+    logger.info(`[ROUTER ORDERS] Batch stampa completato`);
+  } catch (err) {
+    logger.error({ err }, `Errore batch stampa: ${err.message}`);
   }
 }
 
@@ -145,7 +140,7 @@ export default function (broadcast) {
 
   // POST /orders (Creazione Ordine - TRACCIATO)
   router.post('/', authenticate, async (req, res) => {
-    const { items, status } = req.body;
+    const { items, status, is_takeaway } = req.body;
 
     if (!Array.isArray(items) || items.length === 0)
       return res.status(400).json({ error: 'Ordine vuoto o malformato' });
@@ -191,8 +186,8 @@ export default function (broadcast) {
       // Determina order_type: se tutti gli item sono gift → gift, altrimenti sale
       const order_type = verifiedItems.every(i => i.price === 0) ? 'gift' : 'sale';
       const { rows } = await client.query(
-        'INSERT INTO orders (items, total, status, created_by, order_type) VALUES ($1,$2,$3,$4,$5) RETURNING id, created_at',
-        [JSON.stringify(verifiedItems), verifiedTotal, status || 'pending', req.user.id, order_type]
+        'INSERT INTO orders (items, total, status, created_by, order_type, is_takeaway) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, created_at',
+        [JSON.stringify(verifiedItems), verifiedTotal, status || 'pending', req.user.id, order_type, !!is_takeaway]
       );
       const orderId = rows[0].id;
       const timestamp = rows[0].created_at;
@@ -230,7 +225,7 @@ export default function (broadcast) {
 
       // Calcoliamo il numero cortissimo (1-100) per l'interfaccia grafica e i messaggi WebSocket
       const displayId = await getDisplayOrderId(orderId, timestamp);
-      const orderData = { id: orderId, created_at: timestamp, items: verifiedItems, total: verifiedTotal };
+      const orderData = { id: orderId, created_at: timestamp, items: verifiedItems, total: verifiedTotal, is_takeaway: !!is_takeaway };
 
       if (broadcast) {
         broadcast({
@@ -241,7 +236,8 @@ export default function (broadcast) {
             items: verifiedItems,
             total: verifiedTotal,
             status: status || 'pending',
-            created_at: timestamp
+            created_at: timestamp,
+            is_takeaway: !!is_takeaway
           }
         });
       }

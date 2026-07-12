@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingCart, Check, Printer, MessageSquare, Gift, QrCode } from 'lucide-react';
+import { ShoppingCart, Check, Printer, MessageSquare, Gift, QrCode, ShoppingBag } from 'lucide-react';
 
 const CartDesktopView = ({
     // Props passate dal Container padre
@@ -19,6 +19,8 @@ const CartDesktopView = ({
     setIsClearModalOpen,
     toggleOrderType,
     isAllGift,
+    isTakeaway,
+    setIsTakeaway,
     children
 }) => {
     return (
@@ -33,17 +35,28 @@ const CartDesktopView = ({
                     </span>
                 </div>
                 <div className="flex items-center gap-2">
+
+                    {/* Pulsante Asporto */}
+                    <button
+                        onClick={() => setIsTakeaway(v => !v)}
+                        title={isTakeaway ? 'Disattiva asporto' : 'Segna come asporto'}
+                        className={`p-2 rounded-xl border transition-all ${isTakeaway
+                            ? 'bg-green-500 border-green-500 text-white'
+                            : 'border-[var(--border)] text-[var(--text-muted)] hover:text-green-500 hover:border-green-500/50'}`}>
+                        <ShoppingBag size={20} />
+                    </button>
+
                     {/* Pulsante Regalo / Omaggio */}
                     <button
                         disabled={cart.length === 0}
                         onClick={() => toggleOrderType(v => !v)}
-                        title={cart.length === 0 ? "Aggiungi articoli al carrello" : (isAllGift ? "Disattiva omaggio" : "Segna come omaggio")}
+                        title={cart.length === 0 ? "Segna omaggio" : (isAllGift ? "Disattiva omaggio" : "Segna come omaggio")}
                         className={`p-2 rounded-xl border transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 ${isAllGift && cart.length > 0
                             ? 'bg-[var(--accent)] border-[var(--accent)] text-white hover:bg-[var(--accent)]/90'
                             : 'border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]/50'
                             }`}
                     >
-                        <Gift size={18} />
+                        <Gift size={20} />
                     </button>
 
                     {/* Pulsante QR Code */}
@@ -52,17 +65,17 @@ const CartDesktopView = ({
                         title="Importa ordine da QR"
                         className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]/50 transition-all duration-200 active:scale-95 cursor-pointer"
                     >
-                        <QrCode size={18} />
+                        <QrCode size={20} />
                     </button>
 
                     {/* Pulsante Ristampa Stampante */}
                     <button
-                        disabled={!sessionActive || !hasOrders} // Qui ho pre-impostato la logica di blocco di cui parlavamo!
+                        disabled={!sessionActive} // Qui ho pre-impostato la logica di blocco di cui parlavamo!
                         onClick={() => setIsReprintModalOpen(true)}
                         title="Ristampa scontrini recenti"
                         className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]/50 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                     >
-                        <Printer size={18} />
+                        <Printer size={20} />
                     </button>
                 </div>
             </div>

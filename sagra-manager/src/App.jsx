@@ -213,13 +213,13 @@ const App = () => {
   const removeFromCart = (product) => setCart(prev => prev.filter(i => !(i.id === product.id && (i.note || '') === (product.note || ''))));
   const removeLastItem = (product) => setCart(prev => prev.map(i => i.id === product.id && (i.note || '') === (product.note || '') ? { ...i, quantity: i.quantity - 1 } : i).filter(i => i.quantity > 0));
 
-  const sendOrder = async () => {
+  const sendOrder = async (isTakeaway = false) => {
     if (!sessionActive) return showToast('Nessuna sessione attiva!', 'error');
     if (cart.length === 0) return showToast('Carrello vuoto!', 'error');
     try {
       const res = await fetch(`${API_URL}/orders`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ items: cart.map(i => ({ id: i.id, name: i.name, quantity: i.quantity, price: i.price, note: i.note || '', print_destination: i.print_destination || 'both', type: i.type || 'sale' })), status: orderMode === 'simple' ? 'completed' : 'pending' })
+        body: JSON.stringify({ items: cart.map(i => ({ id: i.id, name: i.name, quantity: i.quantity, price: i.price, note: i.note || '', print_destination: i.print_destination || 'both', type: i.type || 'sale' })), status: orderMode === 'simple' ? 'completed' : 'pending', is_takeaway: isTakeaway })
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Errore server'); }
       playSagraSound('order_confirm_sound');

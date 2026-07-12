@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingCart, Check, Printer, MessageSquare, QrCode, Trash2, Gift } from 'lucide-react';
+import { ShoppingCart, Check, Printer, MessageSquare, QrCode, Trash2, Gift, ShoppingBag } from 'lucide-react';
 
 const CartMobileView = ({
     onClose,
@@ -19,7 +19,8 @@ const CartMobileView = ({
     setIsClearModalOpen,
     toggleOrderType,
     isAllGift,
-    hasOrders, // Aggiunta prop allineata al Desktop
+    isTakeaway,
+    setIsTakeaway,
     children
 }) => {
 
@@ -58,6 +59,17 @@ const CartMobileView = ({
 
                 {/* Pulsanti azione rapidi e grandi */}
                 <div className="flex items-center gap-1.5">
+
+                    {/* Pulsante flag asporto */}
+                    <button
+                        onClick={() => setIsTakeaway(v => !v)}
+                        title={isTakeaway ? 'Disattiva asporto' : 'Segna come asporto'}
+                        className={`p-2 rounded-xl border transition-all ${isTakeaway
+                            ? 'bg-green-500 border-green-500 text-white'
+                            : 'border-[var(--border)] text-[var(--text-muted)] hover:text-green-500 hover:border-green-500/50'}`}>
+                        <ShoppingBag size={20} />
+                    </button>
+
                     {/* Pulsante Regalo / Omaggio allineato da Desktop */}
                     <button
                         disabled={cart.length === 0}
@@ -68,22 +80,22 @@ const CartMobileView = ({
                             : 'bg-[var(--bg-card-2)] border-[var(--border)] text-[var(--text-muted)]'
                             }`}
                     >
-                        <Gift size={18} />
+                        <Gift size={20} />
                     </button>
 
                     <button
                         onClick={() => setIsQRScanModalOpen(true)}
                         className="p-3 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] active:scale-95 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
                     >
-                        <QrCode size={18} />
+                        <QrCode size={20} />
                     </button>
 
                     <button
-                        disabled={!sessionActive || !hasOrders}
+                        disabled={!sessionActive}
                         onClick={() => setIsReprintModalOpen(true)}
                         className="p-3 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] active:scale-95 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                     >
-                        <Printer size={18} />
+                        <Printer size={20} />
                     </button>
                 </div>
             </div>
