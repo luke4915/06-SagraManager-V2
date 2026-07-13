@@ -280,7 +280,7 @@ const App = () => {
   const cartProps = {
     cart, setCart, total, addToCart, removeFromCart,
     removeLastItem, clearCart, sendOrder,
-    sessionActive, wsConnected, updateItemType, toggleOrderType
+    sessionActive, wsConnected, updateItemType, toggleOrderType, setShowReversePopup
   };
 
   return (
@@ -356,12 +356,7 @@ const App = () => {
           {/* ── Carrello Desktop ──────────────────────────── */}
           {view === 'dashboard' && user.role !== 'cucina' && (
             <div className="w-[420px] hidden xl:flex flex-col shrink-0">
-              <Cart {...cartProps}>
-                <button onClick={() => setShowReversePopup(true)}
-                  className="py-3 bg-purple-600/10 text-purple-600 border border-purple-100 dark:border-purple-900/30 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-purple-600 hover:text-white transition-all">
-                  Storno Ordini
-                </button>
-              </Cart>
+              <Cart {...cartProps} />
             </div>
           )}
         </div>

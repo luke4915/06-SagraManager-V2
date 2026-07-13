@@ -383,7 +383,7 @@ const ClearCartModal = ({ onConfirm, onClose }) => (
 );
 
 // ─── Componente Cart Principale (Container Logico) ────────────────
-const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem, clearCart, sendOrder, sessionActive, children, wsConnected, onClose, updateItemType, toggleOrderType }) => {
+const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem, clearCart, sendOrder, sessionActive, children, wsConnected, onClose, updateItemType, toggleOrderType, setShowReversePopup }) => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [amountReceived, setAmountReceived] = useState('');
   const [change, setChange] = useState(0);
@@ -477,7 +477,8 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
     toggleOrderType,
     isAllGift,
     isTakeaway,
-    setIsTakeaway
+    setIsTakeaway,
+    setShowReversePopup
   };
 
   return (
