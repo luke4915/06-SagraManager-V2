@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import logger from '../logger.js';
 
 export function authenticate(req, res, next) {
   let token = req.cookies?.token;
@@ -27,5 +28,15 @@ export function authenticate(req, res, next) {
 export function authorizeAdmin(req, res, next) {
   if (req.user?.role !== 'admin')
     return res.status(403).json({ error: 'Accesso riservato agli amministratori' });
+  next();
+}
+
+// Ruoli abilitati ad applicare sconti/omaggi su ordini e singoli prodotti.
+// Esportato anche come array riutilizzabile per validazioni inline (non solo middleware di route).
+export const DISCOUNT_ROLES = ['admin', 'responsabile'];
+
+export function authorizeDiscount(req, res, next) {
+  if (!DISCOUNT_ROLES.includes(req.user?.role))
+    return res.status(403).json({ error: 'Accesso riservato ad admin e responsabili' });
   next();
 }

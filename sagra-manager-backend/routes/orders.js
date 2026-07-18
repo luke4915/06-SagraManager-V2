@@ -3,8 +3,9 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { pool } from '../db.js';
-import { authenticate } from '../middleware/authenticate.js';
+import { authenticate, DISCOUNT_ROLES } from '../middleware/authenticate.js';
 import { printOrderBatch } from '../utils/receiptTemplates.js';
+import { computeEffectivePrice, sanitizeAdjustment } from '../utils/pricing.js';
 import logger from '../logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 
@@ -62,7 +63,8 @@ async function printOrder(orderData, sessionName) {
     `SELECT ps.printer_type, ps.printer_address, ct.name AS copy_type
      FROM print_settings ps
      JOIN copy_types ct ON ct.id = ps.copy_type_id
-     WHERE ps.enabled = true`
+     WHERE ps.enabled = true
+     ORDER BY ps.sort_order ASC, ct.id ASC`
   );
   if (!settings.length) return;
 
@@ -140,10 +142,11 @@ export default function (broadcast) {
 
   // POST /orders (Creazione Ordine - TRACCIATO)
   router.post('/', authenticate, async (req, res) => {
-    const { items, status, is_takeaway } = req.body;
-
-    if (!Array.isArray(items) || items.length === 0)
-      return res.status(400).json({ error: 'Ordine vuoto o malformato' });
+    const parsed = createOrderSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Richiesta non valida', details: parsed.error.flatten() });
+    }
+    const { items, status, is_takeaway } = parsed.data;
 
     const productIds = [...new Set(items.map(i => i.id).filter(Boolean))];
     const { rows: dbProducts } = await pool.query(
@@ -151,22 +154,39 @@ export default function (broadcast) {
     );
     const priceMap = Object.fromEntries(dbProducts.map(p => [p.id, parseFloat(p.price)]));
 
+    // zod garantisce già che id/quantity siano numeri validi nella FORMA;
+    // qui verifichiamo solo che il prodotto esista davvero a catalogo.
     for (const item of items) {
-      if (!item.id || !priceMap[item.id])
+      if (!priceMap[item.id])
         return res.status(400).json({ error: `Prodotto non valido: ${item.id}` });
-      if (!Number.isInteger(item.quantity) || item.quantity < 1)
-        return res.status(400).json({ error: `Quantità non valida per prodotto ${item.id}` });
     }
 
-    const verifiedItems = items.map(i => ({
-      id: i.id,
-      name: i.name,
-      quantity: i.quantity,
-      price: (i.type === 'gift') ? 0 : priceMap[i.id],
-      note: i.note || '',
-      category: i.category,
-      print_destination: i.print_destination || 'both',
-    }));
+    // Solo admin/responsabile possono inviare righe con omaggio o sconto:
+    // per chiunque altro l'adjustment viene ignorato e forzato a 'sale'.
+    const authorized = DISCOUNT_ROLES.includes(req.user.role);
+    const requestedDiscount = items.some(i => i.type && i.type !== 'sale');
+    if (requestedDiscount && !authorized) {
+      return res.status(403).json({ error: 'Non hai i permessi per applicare sconti o omaggi.' });
+    }
+
+    const verifiedItems = items.map(i => {
+      const original_price = priceMap[i.id];
+      const adjustment = sanitizeAdjustment(i, authorized);
+      const price = computeEffectivePrice(original_price, adjustment);
+      return {
+        id: i.id,
+        name: i.name,
+        quantity: i.quantity,
+        price,
+        original_price,
+        type: adjustment.type,
+        discountMode: adjustment.discountMode,
+        discountValue: adjustment.discountValue,
+        note: i.note || '',
+        category: i.category,
+        print_destination: i.print_destination || 'both',
+      };
+    });
     const verifiedTotal = verifiedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
     // Verifica stock prima di aprire la transazione
@@ -183,8 +203,11 @@ export default function (broadcast) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      // Determina order_type: se tutti gli item sono gift → gift, altrimenti sale
-      const order_type = verifiedItems.every(i => i.price === 0) ? 'gift' : 'sale';
+      // order_type: 'gift' se OGNI riga è omaggio, 'discount' se almeno una riga
+      // ha un adjustment (omaggio o sconto) ma non tutte, altrimenti 'sale'.
+      const allGift = verifiedItems.every(i => i.type === 'gift');
+      const anyAdjustment = verifiedItems.some(i => i.type !== 'sale');
+      const order_type = allGift ? 'gift' : (anyAdjustment ? 'discount' : 'sale');
       const { rows } = await client.query(
         'INSERT INTO orders (items, total, status, created_by, order_type, is_takeaway) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, created_at',
         [JSON.stringify(verifiedItems), verifiedTotal, status || 'pending', req.user.id, order_type, !!is_takeaway]
@@ -301,13 +324,7 @@ export default function (broadcast) {
         'SELECT name FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
       );
       await printOrder(
-        {
-          id: order.id,
-          created_at: order.created_at,
-          items: safeParseJSON(order.items),
-          total: parseFloat(order.total),
-          is_takeaway: order.is_takeaway
-        },
+        { id: order.id, created_at: order.created_at, items: safeParseJSON(order.items), total: parseFloat(order.total) },
         sessionRows[0]?.name || 'Serata'
       );
       res.json({ success: true });

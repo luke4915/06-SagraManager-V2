@@ -22,6 +22,10 @@ import Statistics from './components/shared/Statistics';
 import KDS from './pages/KDSPage';
 import Login from './pages/LoginPage';
 import MenuPage from './pages/MenuPage';
+import { getDiscountedTotal } from './utils/pricing';
+
+// Ruoli abilitati ad applicare sconti/omaggi (specchio di DISCOUNT_ROLES nel backend)
+const DISCOUNT_ROLES = ['admin', 'responsabile'];
 
 const API_URL = import.meta.env.VITE_API_URL;
 const WS_URL = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:3000`;
@@ -161,7 +165,9 @@ const App = () => {
     return () => { clearTimeout(wsReconnectTimer.current); ws.current?.close(); };
   }, [user, loading]);
 
-  useEffect(() => setTotal(cart.reduce((sum, i) => sum + i.price * i.quantity, 0)), [cart]);
+  // Il totale mostrato/usato per il resto è sempre quello REALE da incassare
+  // (già al netto di eventuali sconti/omaggi per riga o sull'intero ordine).
+  useEffect(() => setTotal(getDiscountedTotal(cart)), [cart]);
 
   const addToCart = (product, requestedQty = 1) => {
     // Calcoliamo la quantità GIÀ presente nel carrello per questo prodotto
@@ -187,26 +193,36 @@ const App = () => {
         );
       }
 
-      // AGGIUNTA: Inseriamo il type: 'sale' di default quando un nuovo prodotto entra nel carrello
-      return [...prev, { ...product, quantity: requestedQty, type: 'sale' }];
+      // Ogni nuovo prodotto entra come vendita piena, senza sconto/omaggio
+      return [...prev, { ...product, quantity: requestedQty, type: 'sale', discountMode: null, discountValue: null }];
     });
 
     return true;
   };
 
-  const updateItemType = (item, newType) => {
+  // Applica un adjustment (vendita normale / omaggio / sconto %-€) a UN singolo item del carrello.
+  const updateItemType = (item, newType, discountMode = null, discountValue = null) => {
     setCart(prev => prev.map(i =>
       (i.id === item.id && (i.note || '') === (item.note || ''))
-        ? { ...i, type: newType }
+        ? {
+          ...i,
+          type: newType,
+          discountMode: newType === 'discount' ? discountMode : null,
+          discountValue: newType === 'discount' ? discountValue : null,
+        }
         : i
     ));
   };
 
-  const toggleOrderType = () => {
-    setCart(prev => {
-      const allGift = prev.every(i => i.type === 'gift');
-      return prev.map(i => ({ ...i, type: allGift ? 'sale' : 'gift' }));
-    });
+  // Applica in blocco una percentuale di sconto a TUTTO il carrello.
+  // 0 -> tutti 'sale', 100 -> tutti 'gift' (omaggio), valori intermedi -> 'discount' percent.
+  const applyOrderDiscount = (percent) => {
+    const pct = Math.min(100, Math.max(0, Number(percent) || 0));
+    setCart(prev => prev.map(i => {
+      if (pct <= 0) return { ...i, type: 'sale', discountMode: null, discountValue: null };
+      if (pct >= 100) return { ...i, type: 'gift', discountMode: null, discountValue: null };
+      return { ...i, type: 'discount', discountMode: 'percent', discountValue: pct };
+    }));
   };
 
   const clearCart = (isManual = false) => { if (isManual) playSagraSound('empty_cart_sound'); setCart([]); };
@@ -219,7 +235,17 @@ const App = () => {
     try {
       const res = await fetch(`${API_URL}/orders`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ items: cart.map(i => ({ id: i.id, name: i.name, quantity: i.quantity, price: i.price, note: i.note || '', print_destination: i.print_destination || 'both', type: i.type || 'sale' })), status: orderMode === 'simple' ? 'completed' : 'pending', is_takeaway: isTakeaway })
+        body: JSON.stringify({
+          items: cart.map(i => ({
+            id: i.id, name: i.name, quantity: i.quantity, price: i.price, note: i.note || '',
+            print_destination: i.print_destination || 'both',
+            type: i.type || 'sale',
+            discountMode: i.discountMode || null,
+            discountValue: i.discountValue ?? null,
+          })),
+          status: orderMode === 'simple' ? 'completed' : 'pending',
+          is_takeaway: isTakeaway,
+        })
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Errore server'); }
       playSagraSound('order_confirm_sound');
@@ -277,10 +303,12 @@ const App = () => {
   if (needsPasswordChange) return <ChangePassword user={user} onPasswordChanged={() => setNeedsPasswordChange(false)} />;
   if (window.location.pathname === '/menu') return <MenuPage />;
 
+  const canDiscount = DISCOUNT_ROLES.includes(user?.role);
+
   const cartProps = {
     cart, setCart, total, addToCart, removeFromCart,
     removeLastItem, clearCart, sendOrder,
-    sessionActive, wsConnected, updateItemType, toggleOrderType, setShowReversePopup
+    sessionActive, wsConnected, setShowReversePopup, updateItemType, applyOrderDiscount, canDiscount
   };
 
   return (

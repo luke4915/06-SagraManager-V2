@@ -1,5 +1,7 @@
 import React from 'react';
-import { ShoppingCart, Check, Printer, MessageSquare, QrCode, Trash2, Gift, ShoppingBag } from 'lucide-react';
+import { ShoppingCart, Check, Printer, MessageSquare, QrCode, Trash2, ShoppingBag } from 'lucide-react';
+import { getEffectivePrice, getAdjustmentLabel } from '../../../utils/pricing';
+import OrderDiscountPanel from '../OrderDiscountPanel';
 
 const CartMobileView = ({
     onClose,
@@ -7,6 +9,8 @@ const CartMobileView = ({
     mergedCart,
     cartKey,
     total,
+    fullTotal,
+    hasAnyDiscount,
     amountReceived,
     setAmountReceived,
     change,
@@ -17,8 +21,10 @@ const CartMobileView = ({
     setIsQRScanModalOpen,
     setIsReprintModalOpen,
     setIsClearModalOpen,
-    toggleOrderType,
+    applyOrderDiscount,
+    canDiscount,
     isAllGift,
+    derivedOrderPercent,
     isTakeaway,
     setIsTakeaway,
     children
@@ -32,7 +38,8 @@ const CartMobileView = ({
     };
 
     const handleExactCash = () => {
-        setAmountReceived(isAllGift ? '0.00' : total.toFixed(2));
+        // "total" è già il totale REALE da incassare (netto sconti/omaggi)
+        setAmountReceived(total.toFixed(2));
     };
 
     return (
@@ -70,18 +77,11 @@ const CartMobileView = ({
                         <ShoppingBag size={20} />
                     </button>
 
-                    {/* Pulsante Regalo / Omaggio allineato da Desktop */}
-                    <button
-                        disabled={cart.length === 0}
-                        onClick={() => toggleOrderType(v => !v)}
-                        title={cart.length === 0 ? "Aggiungi articoli al carrello" : (isAllGift ? "Disattiva omaggio" : "Segna come omaggio")}
-                        className={`p-3 rounded-xl border transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 min-w-[44px] min-h-[44px] flex items-center justify-center ${isAllGift && cart.length > 0
-                            ? 'bg-[var(--accent)] border-[var(--accent)] text-white'
-                            : 'bg-[var(--bg-card-2)] border-[var(--border)] text-[var(--text-muted)]'
-                            }`}
-                    >
-                        <Gift size={20} />
-                    </button>
+                    {/* Pannello Sconto / Omaggio sull'intero ordine (solo admin/responsabile) */}
+                    {canDiscount && (
+                        <OrderDiscountPanel cart={cart} derivedOrderPercent={derivedOrderPercent} applyOrderDiscount={applyOrderDiscount}
+                            buttonClassName="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center" />
+                    )}
 
                     <button
                         onClick={() => setIsQRScanModalOpen(true)}
@@ -108,36 +108,50 @@ const CartMobileView = ({
                         <p className="text-xs font-black uppercase tracking-widest mt-3">Il carrello è vuoto</p>
                     </div>
                 ) : (
-                    mergedCart.map(item => (
-                        <div
-                            key={cartKey(item)}
-                            onClick={() => setSelectedItem(item)}
-                            className="p-4 rounded-xl border border-gray-300 dark:border-[var(--border)] bg-[var(--bg-card-2)] active:bg-[var(--border)] active:scale-[0.98] transition-all flex flex-col gap-2 select-none"
-                        >
-                            <div className="flex justify-between items-center gap-3">
-                                <div className="flex items-center gap-3 min-w-0 flex-1">
-                                    <span className="bg-[var(--accent)] text-white text-xs font-black min-w-[24px] h-6 px-1.5 flex items-center justify-center rounded-lg shrink-0">
-                                        {item.quantity}
-                                    </span>
-                                    <span className="font-bold text-sm uppercase leading-snug truncate">
-                                        {item.name}
-                                    </span>
+                    mergedCart.map(item => {
+                        const adjLabel = getAdjustmentLabel(item);
+                        const effTotal = getEffectivePrice(item) * item.quantity;
+                        return (
+                            <div
+                                key={cartKey(item)}
+                                onClick={() => setSelectedItem(item)}
+                                className="p-4 rounded-xl border border-gray-300 dark:border-[var(--border)] bg-[var(--bg-card-2)] active:bg-[var(--border)] active:scale-[0.98] transition-all flex flex-col gap-2 select-none"
+                            >
+                                <div className="flex justify-between items-center gap-3">
+                                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                                        <span className="bg-[var(--accent)] text-white text-xs font-black min-w-[24px] h-6 px-1.5 flex items-center justify-center rounded-lg shrink-0">
+                                            {item.quantity}
+                                        </span>
+                                        <span className="font-bold text-sm uppercase leading-snug truncate">
+                                            {item.name}
+                                        </span>
+                                        {adjLabel && (
+                                            <span className={`shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-full ${item.type === 'gift' ? 'bg-purple-500/10 text-purple-500' : 'bg-orange-500/10 text-orange-500'}`}>{adjLabel}</span>
+                                        )}
+                                    </div>
+                                    {adjLabel ? (
+                                        <span className="flex items-baseline gap-1.5 shrink-0">
+                                            <span className="text-[10px] font-bold tabular-nums text-[var(--text-muted)] line-through">{(item.price * item.quantity).toFixed(2)}€</span>
+                                            <span className={`font-black text-sm tabular-nums ${item.type === 'gift' ? 'text-purple-500' : 'text-orange-500'}`}>{effTotal.toFixed(2)}€</span>
+                                        </span>
+                                    ) : (
+                                        <span className="font-black text-sm tabular-nums shrink-0">
+                                            {(item.price * item.quantity).toFixed(2)}€
+                                        </span>
+                                    )}
                                 </div>
-                                <span className="font-black text-sm tabular-nums shrink-0">
-                                    {(item.price * item.quantity).toFixed(2)}€
-                                </span>
-                            </div>
 
-                            {item.note && (
-                                <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-3 py-1.5 self-start max-w-full">
-                                    <MessageSquare size={12} className="text-yellow-500 shrink-0" />
-                                    <span className="text-xs font-bold uppercase tracking-wide text-yellow-500 truncate">
-                                        {item.note}
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-                    ))
+                                {item.note && (
+                                    <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-3 py-1.5 self-start max-w-full">
+                                        <MessageSquare size={12} className="text-yellow-500 shrink-0" />
+                                        <span className="text-xs font-bold uppercase tracking-wide text-yellow-500 truncate">
+                                            {item.note}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })
                 )}
             </div>
 
@@ -198,11 +212,12 @@ const CartMobileView = ({
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-black uppercase tracking-widest text-[var(--text-muted)]">Totale Comanda</span>
                         {isAllGift && <span className="text-[9px] font-black uppercase tracking-widest bg-purple-500/10 text-purple-500 border border-purple-500/30 px-2 py-0.5 rounded-full">Omaggio</span>}
+                        {!isAllGift && hasAnyDiscount && <span className="text-[9px] font-black uppercase tracking-widest bg-orange-500/10 text-orange-500 border border-orange-500/30 px-2 py-0.5 rounded-full">Scontato</span>}
                     </div>
-                    {isAllGift ? (
+                    {hasAnyDiscount ? (
                         <div className="flex items-baseline gap-2">
-                            <span className="text-sm font-black line-through text-[var(--text-muted)] tabular-nums">{total.toFixed(2)} €</span>
-                            <span className="text-3xl font-black tracking-tight text-purple-500 tabular-nums">0.00 €</span>
+                            <span className="text-sm font-black line-through text-[var(--text-muted)] tabular-nums">{fullTotal.toFixed(2)} €</span>
+                            <span className={`text-3xl font-black tracking-tight tabular-nums ${isAllGift ? 'text-purple-500' : 'text-orange-500'}`}>{total.toFixed(2)} €</span>
                         </div>
                     ) : (
                         <span className="text-3xl font-black tracking-tight text-[var(--accent)] tabular-nums">{total.toFixed(2)} €</span>

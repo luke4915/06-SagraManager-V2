@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trash2, Plus, Minus, Check, X, MessageSquare, Printer } from 'lucide-react';
+import { Trash2, Plus, Minus, Check, X, MessageSquare, Printer, Gift, Percent } from 'lucide-react';
 import jsQR from 'jsqr';
 import { useIsMobile } from '../../hooks/useBreakpoint';
 import CartDesktopView from './desktop/CartDesktopView';
 import CartMobileView from './mobile/CartMobileView';
+import { getEffectivePrice, getDiscountedTotal, getFullTotal } from '../../utils/pricing';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -281,7 +282,7 @@ const QRScanModal = ({ currentCart, onMerge, onReplace, onClose }) => {
 };
 
 // ─── Modale Item Carrello ───────────────────────────────────────
-const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange }) => {
+const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange, onTypeChange, canDiscount }) => {
 
   const [note, setNote] = useState(item.note || '');
 
@@ -293,6 +294,10 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange 
   // Logica di blocco: se ha lo stock abilitato e la quantità ha raggiunto il massimo
   const isMaxStockReached = item.stock_enabled && item.stock !== null && item.quantity >= item.stock;
 
+  const discountMode = item.discountMode || 'percent';
+  const discountValue = item.discountValue ?? 0;
+  const effectivePrice = getEffectivePrice(item);
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={handleClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
@@ -303,7 +308,14 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange 
           <div className="flex-1 min-w-0 pr-3">
             <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-0.5">Articolo selezionato</p>
             <h3 className="font-black text-base uppercase tracking-tight text-[var(--text-main)] leading-tight">{item.name}</h3>
-            <p className="text-[var(--accent)] font-black text-sm tabular-nums mt-0.5">{(item.price * item.quantity).toFixed(2)} €</p>
+            {item.type === 'sale' ? (
+              <p className="text-[var(--accent)] font-black text-sm tabular-nums mt-0.5">{(item.price * item.quantity).toFixed(2)} €</p>
+            ) : (
+              <div className="flex items-baseline gap-1.5 mt-0.5">
+                <p className="text-[var(--text-muted)] font-bold text-xs tabular-nums line-through">{(item.price * item.quantity).toFixed(2)} €</p>
+                <p className={`font-black text-sm tabular-nums ${item.type === 'gift' ? 'text-purple-500' : 'text-orange-500'}`}>{(effectivePrice * item.quantity).toFixed(2)} €</p>
+              </div>
+            )}
           </div>
           <button onClick={handleClose} className="p-2 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors shrink-0"><X size={15} /></button>
         </div>
@@ -338,6 +350,50 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange 
             </p>
           )}
         </div>
+
+        {/* Sconto / Omaggio sul singolo prodotto (solo admin/responsabile) */}
+        {canDiscount && (
+          <div className="px-5 py-4 border-b border-[var(--border)]">
+            <div className="flex items-center gap-2 mb-3">
+              <Percent size={11} className="text-[var(--text-muted)]" />
+              <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)]">Sconto su questo prodotto</p>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <button onClick={() => onTypeChange(item, 'sale')}
+                className={`py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all ${item.type === 'sale' ? 'bg-[var(--accent)] border-[var(--accent)] text-white' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)]/50'}`}>
+                Normale
+              </button>
+              <button onClick={() => onTypeChange(item, 'discount', discountMode, discountValue || 10)}
+                className={`py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all ${item.type === 'discount' ? 'bg-orange-500 border-orange-500 text-white' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-orange-500/50'}`}>
+                Sconto
+              </button>
+              <button onClick={() => onTypeChange(item, 'gift')}
+                className={`py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 ${item.type === 'gift' ? 'bg-purple-500 border-purple-500 text-white' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-purple-500/50'}`}>
+                <Gift size={11} /> Omaggio
+              </button>
+            </div>
+
+            {item.type === 'discount' && (
+              <div className="flex items-center gap-2 mt-3">
+                <div className="flex rounded-xl border border-[var(--border)] bg-[var(--bg-card-2)] p-0.5 shrink-0">
+                  <button onClick={() => onTypeChange(item, 'discount', 'percent', discountValue)}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${discountMode === 'percent' ? 'bg-orange-500 text-white' : 'text-[var(--text-muted)]'}`}>%</button>
+                  <button onClick={() => onTypeChange(item, 'discount', 'amount', discountValue)}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${discountMode === 'amount' ? 'bg-orange-500 text-white' : 'text-[var(--text-muted)]'}`}>€</button>
+                </div>
+                <input
+                  type="number"
+                  min={0}
+                  max={discountMode === 'percent' ? 100 : item.price}
+                  step={discountMode === 'percent' ? 1 : 0.1}
+                  value={discountValue}
+                  onChange={e => onTypeChange(item, 'discount', discountMode, e.target.value === '' ? 0 : Number(e.target.value))}
+                  className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Gestione Note */}
         <div className="px-5 py-4 border-b border-[var(--border)]">
@@ -383,7 +439,7 @@ const ClearCartModal = ({ onConfirm, onClose }) => (
 );
 
 // ─── Componente Cart Principale (Container Logico) ────────────────
-const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem, clearCart, sendOrder, sessionActive, children, wsConnected, onClose, updateItemType, toggleOrderType, setShowReversePopup }) => {
+const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem, clearCart, sendOrder, sessionActive, children, wsConnected, onClose, setShowReversePopup, updateItemType, applyOrderDiscount, canDiscount }) => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [amountReceived, setAmountReceived] = useState('');
   const [change, setChange] = useState(0);
@@ -455,6 +511,19 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
   const currentSelected = selectedItem ? mergedCart.find(i => i.id === selectedItem.id && (i.note || '') === (selectedItem.note || '')) : null;
 
   const isAllGift = cart.length > 0 && cart.every(i => i.type === 'gift');
+  const fullTotal = getFullTotal(cart);
+  const hasAnyDiscount = cart.length > 0 && total < fullTotal - 0.001;
+
+  // Se tutto il carrello condivide lo stesso adjustment, lo riflettiamo nello slider
+  // del pannello sconto ordine; se sono misti (sconti diversi riga per riga), torniamo null.
+  const derivedOrderPercent = (() => {
+    if (cart.length === 0) return 0;
+    if (cart.every(i => i.type === 'sale')) return 0;
+    if (cart.every(i => i.type === 'gift')) return 100;
+    const first = cart[0];
+    const uniform = cart.every(i => i.type === 'discount' && i.discountMode === 'percent' && i.discountValue === first.discountValue);
+    return uniform && first.type === 'discount' ? first.discountValue : null;
+  })();
 
   // Bundle unificato delle props da distribuire ai sotto-render visivi
   const sharedViewProps = {
@@ -462,6 +531,8 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
     mergedCart,
     cartKey,
     total,
+    fullTotal,
+    hasAnyDiscount,
     amountReceived,
     setAmountReceived,
     change,
@@ -474,8 +545,10 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
     setIsClearModalOpen,
     children,
     onClose,
-    toggleOrderType,
+    applyOrderDiscount,
+    canDiscount,
     isAllGift,
+    derivedOrderPercent,
     isTakeaway,
     setIsTakeaway,
     setShowReversePopup
@@ -502,6 +575,7 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
           onDelete={removeFromCart}
           onNoteChange={handleNoteChange}
           onTypeChange={updateItemType}
+          canDiscount={canDiscount}
         />
       )}
       {isReprintModalOpen && <ReprintSelectionModal onClose={() => setIsReprintModalOpen(false)} />}

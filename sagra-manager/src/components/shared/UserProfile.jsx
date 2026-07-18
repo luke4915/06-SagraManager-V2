@@ -110,6 +110,7 @@ const UserProfile = ({ onClose }) => {
             <select value={newUserRole} onChange={e => setNewUserRole(e.target.value)} className={inputClass}>
               <option value="cassa">Cassa</option>
               <option value="cucina">Cucina</option>
+              <option value="responsabile">Responsabile</option>
               <option value="admin">Admin</option>
             </select>
             <div className="flex gap-3">

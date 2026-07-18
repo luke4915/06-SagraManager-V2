@@ -67,13 +67,13 @@ router.post('/refresh', async (req, res) => {
     if (!rows.length) {
       return res.status(401).json({ error: 'Utente non trovato o disabilitato' });
     }
-    
+
     const user = rows[0];
 
     // 4. Generiamo il nuovo token e sovrascriviamo il vecchio cookie
     const newToken = signToken(user);
     setCookie(res, newToken);
-    
+
     logger.info(`[AUTH] Sessione prolungata con successo per l'utente: ${user.username}`);
     res.json({ ok: true });
   } catch (err) {
@@ -112,7 +112,7 @@ router.post('/change-password', authenticate, async (req, res) => {
 router.post('/admin/createUser', authenticate, authorizeAdmin, async (req, res) => {
   const { username, role } = req.body;
   if (!username?.trim()) return res.status(400).json({ error: 'Username richiesto' });
-  const VALID_ROLES = ['admin', 'cassa', 'cucina'];
+  const VALID_ROLES = ['admin', 'cassa', 'cucina', 'responsabile'];
   if (role && !VALID_ROLES.includes(role))
     return res.status(400).json({ error: `Ruolo non valido. Valori accettati: ${VALID_ROLES.join(', ')}` });
   try {

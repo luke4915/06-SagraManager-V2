@@ -1,5 +1,7 @@
 import React from 'react';
-import { ShoppingCart, Send, Printer, MessageSquare, Gift, QrCode, ShoppingBag, Trash, Undo2 } from 'lucide-react';
+import { ShoppingCart, Check, Printer, MessageSquare, QrCode, ShoppingBag, Undo2, Send, Trash } from 'lucide-react';
+import { getEffectivePrice, getAdjustmentLabel } from '../../../utils/pricing';
+import OrderDiscountPanel from '../OrderDiscountPanel';
 
 const CartDesktopView = ({
     // Props passate dal Container padre
@@ -7,6 +9,8 @@ const CartDesktopView = ({
     mergedCart,
     cartKey,
     total,
+    fullTotal,
+    hasAnyDiscount,
     amountReceived,
     setAmountReceived,
     change,
@@ -16,12 +20,15 @@ const CartDesktopView = ({
     setSelectedItem,
     setIsQRScanModalOpen,
     setIsReprintModalOpen,
+    setShowReversePopup,
     setIsClearModalOpen,
-    toggleOrderType,
+    applyOrderDiscount,
+    canDiscount,
     isAllGift,
+    derivedOrderPercent,
     isTakeaway,
     setIsTakeaway,
-    setShowReversePopup
+    children
 }) => {
     return (
         <div className="flex flex-col h-full bg-[var(--bg-card)] rounded-xl border border-[var(--border)] overflow-hidden">
@@ -57,18 +64,10 @@ const CartDesktopView = ({
                         <ShoppingBag size={22} />
                     </button>
 
-                    {/* Pulsante Regalo / Omaggio */}
-                    <button
-                        disabled={cart.length === 0}
-                        onClick={() => toggleOrderType(v => !v)}
-                        title={cart.length === 0 ? "Segna omaggio" : (isAllGift ? "Disattiva omaggio" : "Segna come omaggio")}
-                        className={`p-2 rounded-xl border transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 ${isAllGift && cart.length > 0
-                            ? 'bg-[var(--accent)] border-[var(--accent)] text-white hover:bg-[var(--accent)]/90'
-                            : 'border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]/50'
-                            }`}
-                    >
-                        <Gift size={22} />
-                    </button>
+                    {/* Pannello Sconto / Omaggio sull'intero ordine (solo admin/responsabile) */}
+                    {canDiscount && (
+                        <OrderDiscountPanel cart={cart} derivedOrderPercent={derivedOrderPercent} applyOrderDiscount={applyOrderDiscount} />
+                    )}
 
                     {/* Pulsante QR Code */}
                     <button
@@ -98,24 +97,38 @@ const CartDesktopView = ({
                         <ShoppingCart size={32} />
                         <p className="text-sm text-center font-black uppercase tracking-widest mt-2">Vuoto</p>
                     </div>
-                ) : mergedCart.map(item => (
-                    <div key={cartKey(item)} onClick={() => setSelectedItem(item)}
-                        className="px-3 py-2 rounded-xl cursor-pointer border border-gray-300 dark:border-[var(--border)] bg-[var(--bg-card-2)] hover:border-[var(--accent)]/60 active:scale-[0.99] transition-all">
-                        <div className="flex justify-between items-center gap-2">
-                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                <span className="bg-[var(--accent)] text-white text-[14px] font-black w-5 h-5 flex items-center justify-center rounded">{item.quantity}</span>
-                                <span className="font-bold text-sm uppercase text-[var(--text-main)] leading-tight truncate">{item.name}</span>
+                ) : mergedCart.map(item => {
+                    const adjLabel = getAdjustmentLabel(item);
+                    const effTotal = getEffectivePrice(item) * item.quantity;
+                    return (
+                        <div key={cartKey(item)} onClick={() => setSelectedItem(item)}
+                            className="px-3 py-2 rounded-xl cursor-pointer border border-gray-300 dark:border-[var(--border)] bg-[var(--bg-card-2)] hover:border-[var(--accent)]/60 active:scale-[0.99] transition-all">
+                            <div className="flex justify-between items-center gap-2">
+                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                    <span className="bg-[var(--accent)] text-white text-[10px] font-black w-5 h-5 flex items-center justify-center rounded shrink-0">{item.quantity}</span>
+                                    <span className="font-bold text-xs uppercase text-[var(--text-main)] leading-tight truncate">{item.name}</span>
+                                    {adjLabel && (
+                                        <span className={`shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-full ${item.type === 'gift' ? 'bg-purple-500/10 text-purple-500' : 'bg-orange-500/10 text-orange-500'}`}>{adjLabel}</span>
+                                    )}
+                                </div>
+                                {adjLabel ? (
+                                    <span className="flex items-baseline gap-1.5 shrink-0">
+                                        <span className="text-[10px] font-bold tabular-nums text-[var(--text-muted)] line-through">{(item.price * item.quantity).toFixed(2)}€</span>
+                                        <span className={`font-black text-xs tabular-nums ${item.type === 'gift' ? 'text-purple-500' : 'text-orange-500'}`}>{effTotal.toFixed(2)}€</span>
+                                    </span>
+                                ) : (
+                                    <span className="font-black text-xs tabular-nums text-[var(--text-main)] shrink-0">{(item.price * item.quantity).toFixed(2)}€</span>
+                                )}
                             </div>
-                            { /* <span className="font-black text-xs tabular-nums text-[var(--text-main)] shrink-0">{(item.price * item.quantity).toFixed(2)}€</span> */}
+                            {item.note && (
+                                <div className="ml-7 mt-1.5 flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-2 py-1">
+                                    <MessageSquare size={9} className="text-yellow-500 shrink-0" />
+                                    <span className="text-[10px] font-black uppercase tracking-wide text-yellow-500 truncate">{item.note}</span>
+                                </div>
+                            )}
                         </div>
-                        {item.note && (
-                            <div className="ml-7 mt-1.5 flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-2 py-1">
-                                <MessageSquare size={9} className="text-yellow-500 shrink-0" />
-                                <span className="text-[10px] font-black uppercase tracking-wide text-yellow-500 truncate">{item.note}</span>
-                            </div>
-                        )}
-                    </div>
-                ))}
+                    );
+                })}
             </div>
 
             {/* Footer Cassa Desktop */}
@@ -147,10 +160,10 @@ const CartDesktopView = ({
                     <div className="bg-[var(--bg-card)] px-3 py-1 rounded-xl border border-[var(--border)]">
                         <span className="text-[13px] font-black text-[var(--text-muted)] uppercase tracking-wider block">Resto</span>
                         <span className={`text-xl font-black tabular-nums block text-right transition-colors duration-150 ${!amountReceived
-                                ? 'text-[var(--text-muted)]'
-                                : change < 0
-                                    ? 'text-red-500'
-                                    : 'text-green-500'
+                            ? 'text-[var(--text-muted)]'
+                            : change < 0
+                                ? 'text-red-500'
+                                : 'text-green-500'
                             }`}>
                             {change >= 0 ? change.toFixed(2) : '0.00'} €
                         </span>
@@ -158,14 +171,15 @@ const CartDesktopView = ({
                 </div>
 
                 <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                         <span className="text-xl font-black text-[var(--text-main)] uppercase tracking-widest">Totale</span>
-                        {isAllGift && <span className="text-[11px] font-black uppercase tracking-widest bg-purple-500/10 text-purple-500 border border-purple-500/30 px-2 py-0.5 rounded-full">Omaggio</span>}
+                        {isAllGift && <span className="text-[9px] font-black uppercase tracking-widest bg-purple-500/10 text-purple-500 border border-purple-500/30 px-2 py-0.5 rounded-full">Omaggio</span>}
+                        {!isAllGift && hasAnyDiscount && <span className="text-[9px] font-black uppercase tracking-widest bg-orange-500/10 text-orange-500 border border-orange-500/30 px-2 py-0.5 rounded-full">Scontato</span>}
                     </div>
-                    {isAllGift ? (
+                    {hasAnyDiscount ? (
                         <div className="flex items-baseline gap-2">
-                            <span className="text-base font-black line-through text-[var(--text-muted)] tabular-nums">{total.toFixed(2)} €</span>
-                            <span className="text-2xl font-black tracking-tighter text-purple-500 tabular-nums">0.00 €</span>
+                            <span className="text-base font-black line-through text-[var(--text-muted)] tabular-nums">{fullTotal.toFixed(2)} €</span>
+                            <span className={`text-2xl font-black tracking-tighter tabular-nums ${isAllGift ? 'text-purple-500' : 'text-orange-500'}`}>{total.toFixed(2)} €</span>
                         </div>
                     ) : (
                         <span className="text-2xl font-black tracking-tighter text-[var(--text-main)] tabular-nums">{total.toFixed(2)} €</span>
