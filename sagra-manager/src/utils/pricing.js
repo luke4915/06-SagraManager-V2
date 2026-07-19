@@ -7,25 +7,32 @@
 // item.discountMode: 'percent' | 'amount'   (rilevante solo se type === 'discount')
 // item.discountValue: number
 
+// ─── Pricing helper condiviso (frontend) ──────────────────────────────
+
 export const VALID_TYPES = ['sale', 'gift', 'discount'];
 export const VALID_DISCOUNT_MODES = ['percent', 'amount'];
 
 /**
  * Calcola il prezzo unitario effettivo di una riga carrello.
- * Ritorna sempre un valore clampato in [0, item.price].
  */
 export function getEffectivePrice(item) {
     const base = Number(item?.price) || 0;
+    const qty = Number(item?.quantity) || 0;
 
     if (item?.type === 'gift') return 0;
 
     if (item?.type === 'discount') {
         const val = Number(item.discountValue) || 0;
         if (item.discountMode === 'amount') {
-            return Math.max(0, +(base - val).toFixed(2));
+            // 🟢 ORA LO SCONTO È SULLA RIGA: lo dividiamo per la quantità complessiva
+            const unitDiscount = qty > 0 ? val / qty : val;
+
+            // Ritorniamo il valore esatto fluttuante (NON arrotondiamo qui con toFixed 
+            // altrimenti perdiamo centesimi preziosi nella moltiplicazione successiva)
+            return Math.max(0, base - unitDiscount);
         }
         const pct = Math.min(100, Math.max(0, val));
-        return Math.max(0, +(base * (1 - pct / 100)).toFixed(2));
+        return Math.max(0, base * (1 - pct / 100));
     }
 
     return base;
@@ -33,7 +40,9 @@ export function getEffectivePrice(item) {
 
 /** Totale di una riga (prezzo effettivo × quantità). */
 export function getLineTotal(item) {
-    return getEffectivePrice(item) * (Number(item?.quantity) || 0);
+    // 🟢 L'arrotondamento monetario a 2 decimali si sposta SOLO qui, sul totale finito di riga
+    const total = getEffectivePrice(item) * (Number(item?.quantity) || 0);
+    return +total.toFixed(2);
 }
 
 /** Somma dei prezzi di listino (pre-sconto) del carrello. */

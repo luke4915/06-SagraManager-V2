@@ -48,7 +48,7 @@ const CartDesktopView = ({
                         disabled={!sessionActive}
                         onClick={() => setShowReversePopup(true)}
                         title="Storno Ordine"
-                        className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-red-500 hover:border-red-500/50 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+                        className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-red-500 hover:border-red-500/50 transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                     >
                         <Undo2 size={22} />
                     </button>
@@ -83,7 +83,7 @@ const CartDesktopView = ({
                         disabled={!sessionActive}
                         onClick={() => setIsReprintModalOpen(true)}
                         title="Ristampa scontrini recenti"
-                        className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]/50 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+                        className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]/50 transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                     >
                         <Printer size={22} />
                     </button>
