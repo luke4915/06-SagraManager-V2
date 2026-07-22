@@ -8,7 +8,7 @@ import cookieParser from 'cookie-parser';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import escpos from 'escpos';
-import escposUsb from 'escpos-usb';
+// import escposUsb from 'escpos-usb';
 import helmet from 'helmet';
 import fs from 'fs'; // 🔴 NUOVO: Necessario per leggere i file .pem di mkcert
 
@@ -25,7 +25,7 @@ import { loginLimiter, apiLimiter, ordersLimiter } from './middleware/rateLimite
 import logger from './logger.js';
 import { pool } from './db.js';
 
-escpos.USB = escposUsb;
+// escpos.USB = escposUsb;
 dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

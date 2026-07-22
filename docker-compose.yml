@@ -1,0 +1,62 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PG_USER:-standmanager}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-standmanager}
+      POSTGRES_DB: ${PG_DATABASE:-standmanager}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-standmanager}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./sagra-manager-backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_USER: ${PG_USER:-standmanager}
+      PG_PASSWORD: ${PG_PASSWORD:-standmanager}
+      PG_DATABASE: ${PG_DATABASE:-standmanager}
+      JWT_SECRET: ${JWT_SECRET:-changeme_in_production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ./sagra-manager-backend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+
+  frontend:
+    build:
+      context: ./sagra-manager
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://localhost:3000/api
+      VITE_WS_URL: ws://localhost:3000
+    volumes:
+      - ./sagra-manager:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+
+volumes:
+  postgres_data:
