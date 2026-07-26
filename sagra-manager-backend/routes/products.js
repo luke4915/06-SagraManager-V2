@@ -1,6 +1,7 @@
 import express from 'express';
 import { pool } from '../db.js';
 import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
+import { tenantScope, withTenantClient } from '../middleware/tenantScope.js';
 import logger from '../logger.js';
 
 const router = express.Router();
@@ -8,13 +9,26 @@ const VALID_DESTINATIONS = ['bar', 'kitchen', 'both'];
 const LOW_STOCK_THRESHOLD = 10;
 
 // GET /api/products/menu — pubblico
+// ⚠️ TODO multi-tenant: stesso problema del KDS (vedi orders.js) — stop-gap
+// sul tenant "default" finché non c'è un'identificazione reale (slug in URL?).
+let defaultTenantIdCache = null;
 router.get('/menu', async (req, res) => {
   try {
-    const [{ rows: products }, { rows: sessions }] = await Promise.all([
-      pool.query('SELECT id, name, price, category, color FROM products WHERE visible = true ORDER BY category, name'),
-      pool.query('SELECT name FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1')
-    ]);
-    res.json({ sessionName: sessions[0]?.name || null, products });
+    if (defaultTenantIdCache === null) {
+      const { rows } = await pool.query("SELECT id FROM tenants WHERE slug = 'default'");
+      defaultTenantIdCache = rows[0]?.id ?? null;
+    }
+    if (defaultTenantIdCache === null) return res.json({ sessionName: null, products: [] });
+
+    const data = await withTenantClient(defaultTenantIdCache, async (db) => {
+      const [{ rows: products }, { rows: sessions }] = await Promise.all([
+        db.query('SELECT id, name, price, category, color FROM products WHERE visible = true ORDER BY category, name'),
+        db.query('SELECT name FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1')
+      ]);
+      return { sessionName: sessions[0]?.name || null, products };
+    });
+
+    res.json(data);
   } catch (err) {
     logger.error({ err }, 'Errore GET /api/products/menu');
     res.status(500).json({ error: 'Errore caricamento menu' });
@@ -22,9 +36,9 @@ router.get('/menu', async (req, res) => {
 });
 
 // GET /api/products
-router.get('/', authenticate, async (req, res) => {
+router.get('/', authenticate, tenantScope, async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM products ORDER BY category, name');
+    const { rows } = await req.db.query('SELECT * FROM products ORDER BY category, name');
     res.json(rows);
   } catch (err) {
     logger.error({ err }, 'Errore caricamento prodotti');
@@ -33,12 +47,12 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // PATCH /api/products/bulk-visibility
-router.patch('/bulk-visibility', authenticate, authorizeAdmin, async (req, res) => {
+router.patch('/bulk-visibility', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
   const { ids, visible } = req.body;
   if (!Array.isArray(ids) || ids.length === 0 || visible === undefined)
     return res.status(400).json({ error: 'Dati non validi.' });
   try {
-    const { rows } = await pool.query(
+    const { rows } = await req.db.query(
       'UPDATE products SET visible = $1 WHERE id = ANY($2) RETURNING *',
       [visible, ids]
     );
@@ -50,11 +64,11 @@ router.patch('/bulk-visibility', authenticate, authorizeAdmin, async (req, res) 
 });
 
 // PATCH /api/products/:id/stock — aggiorna stock (admin + cassa)
-router.patch('/:id/stock', authenticate, async (req, res) => {
+router.patch('/:id/stock', authenticate, tenantScope, async (req, res) => {
   const { id } = req.params;
   const { stock, stock_enabled } = req.body;
   try {
-    const { rows } = await pool.query(
+    const { rows } = await req.db.query(
       'UPDATE products SET stock = $1, stock_enabled = $2 WHERE id = $3 RETURNING *',
       [stock === null || stock === undefined ? null : parseInt(stock), stock_enabled ?? true, id]
     );
@@ -67,7 +81,7 @@ router.patch('/:id/stock', authenticate, async (req, res) => {
 });
 
 // POST /api/products
-router.post('/', authenticate, authorizeAdmin, async (req, res) => {
+router.post('/', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
   const { name, price, category, color, visible, print_destination } = req.body;
   if (!name?.trim() || price === undefined || price === null || !category?.trim())
     return res.status(400).json({ error: 'Nome, Prezzo e Categoria sono obbligatori.' });
@@ -77,7 +91,7 @@ router.post('/', authenticate, authorizeAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Prezzo non valido.' });
   const dest = VALID_DESTINATIONS.includes(print_destination) ? print_destination : 'both';
   try {
-    const { rows } = await pool.query(
+    const { rows } = await req.db.query(
       'INSERT INTO products (name, price, category, color, visible, print_destination) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
       [name.trim(), price, category.trim(), color || '#3b82f6', visible !== false, dest]
     );
@@ -89,14 +103,14 @@ router.post('/', authenticate, authorizeAdmin, async (req, res) => {
 });
 
 // PUT /api/products/:id
-router.put('/:id', authenticate, authorizeAdmin, async (req, res) => {
+router.put('/:id', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
   const { id } = req.params;
   const { name, price, category, color, visible, print_destination } = req.body;
   if (!name?.trim() || price === undefined || price === null || !category?.trim())
     return res.status(400).json({ error: 'Campi obbligatori mancanti.' });
   const dest = VALID_DESTINATIONS.includes(print_destination) ? print_destination : 'both';
   try {
-    const { rows } = await pool.query(
+    const { rows } = await req.db.query(
       'UPDATE products SET name=$1, price=$2, category=$3, color=$4, visible=$5, print_destination=$6 WHERE id=$7 RETURNING *',
       [name.trim(), price, category.trim(), color, visible, dest, id]
     );
@@ -109,10 +123,10 @@ router.put('/:id', authenticate, authorizeAdmin, async (req, res) => {
 });
 
 // DELETE /api/products/:id
-router.delete('/:id', authenticate, authorizeAdmin, async (req, res) => {
+router.delete('/:id', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
   const { id } = req.params;
   try {
-    const result = await pool.query('DELETE FROM products WHERE id=$1', [id]);
+    const result = await req.db.query('DELETE FROM products WHERE id=$1', [id]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Prodotto non trovato' });
     res.json({ message: 'Prodotto eliminato' });
   } catch (err) {

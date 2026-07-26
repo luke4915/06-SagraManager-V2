@@ -1,6 +1,7 @@
 import express from 'express';
 import { pool } from '../db.js';
 import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
+import { tenantScope } from '../middleware/tenantScope.js';
 import logger from '../logger.js';
 
 const router = express.Router();
@@ -8,19 +9,19 @@ const router = express.Router();
 const fmt = (n) => Number(n || 0).toFixed(2).replace('.', ',');
 const esc = (s) => `"${String(s || '').replace(/"/g, '""')}"`;
 
-router.get('/session/:id/csv', authenticate, authorizeAdmin, async (req, res) => {
+router.get('/session/:id/csv', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
 
   const sessionId = parseInt(req.params.id);
   if (isNaN(sessionId)) return res.status(400).json({ error: 'ID sessione non valido' });
 
   try {
-    const { rows: sessionRows } = await pool.query('SELECT * FROM sessions WHERE id=$1', [sessionId]);
+    const { rows: sessionRows } = await req.db.query('SELECT * FROM sessions WHERE id=$1', [sessionId]);
     const session = sessionRows[0];
     if (!session) return res.status(404).json({ error: 'Sessione non trovata' });
 
     const endTime = session.end_time || new Date().toISOString();
 
-    const { rows: orders } = await pool.query(
+    const { rows: orders } = await req.db.query(
       `SELECT id, created_at, items, total FROM orders
        WHERE status='completed' AND created_at >= $1 AND created_at <= $2
        ORDER BY created_at ASC`,

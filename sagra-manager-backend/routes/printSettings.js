@@ -2,6 +2,7 @@
 import express from 'express';
 import { pool } from '../db.js';
 import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
+import { tenantScope } from '../middleware/tenantScope.js';
 import logger from '../logger.js';
 
 const router = express.Router();
@@ -9,9 +10,9 @@ const router = express.Router();
 // ─── COPY TYPES ───────────────────────────────────────────────
 
 // GET /api/print-settings/copy-types — tutti gli utenti autenticati
-router.get('/copy-types', authenticate, async (req, res) => {
+router.get('/copy-types', authenticate, tenantScope, async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM copy_types ORDER BY id');
+    const { rows } = await req.db.query('SELECT * FROM copy_types ORDER BY id');
     res.json(rows);
   } catch (err) {
     logger.error({ err }, 'Errore GET /copy-types:')
@@ -20,18 +21,18 @@ router.get('/copy-types', authenticate, async (req, res) => {
 });
 
 // POST /api/print-settings/copy-types — solo admin
-router.post('/copy-types', authenticate, authorizeAdmin, async (req, res) => {
+router.post('/copy-types', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
   const { name, label } = req.body;
   if (!name?.trim() || !label?.trim())
     return res.status(400).json({ error: 'name e label sono obbligatori' });
 
   try {
-    const { rows } = await pool.query(
+    const { rows } = await req.db.query(
       'INSERT INTO copy_types (name, label) VALUES ($1, $2) RETURNING *',
       [name.trim(), label.trim()]
     );
     // Crea subito una riga print_settings di default per il nuovo tipo
-    await pool.query(
+    await req.db.query(
       'INSERT INTO print_settings (copy_type_id, printer_type, enabled) VALUES ($1, $2, false)',
       [rows[0].id, 'network']
     );
@@ -45,14 +46,14 @@ router.post('/copy-types', authenticate, authorizeAdmin, async (req, res) => {
 });
 
 // PUT /api/print-settings/copy-types/:id — solo admin
-router.put('/copy-types/:id', authenticate, authorizeAdmin, async (req, res) => {
+router.put('/copy-types/:id', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
   const { id } = req.params;
   const { name, label } = req.body;
   if (!name?.trim() || !label?.trim())
     return res.status(400).json({ error: 'name e label sono obbligatori' });
 
   try {
-    const { rows } = await pool.query(
+    const { rows } = await req.db.query(
       'UPDATE copy_types SET name=$1, label=$2 WHERE id=$3 RETURNING *',
       [name.trim(), label.trim(), id]
     );
@@ -67,10 +68,10 @@ router.put('/copy-types/:id', authenticate, authorizeAdmin, async (req, res) => 
 });
 
 // DELETE /api/print-settings/copy-types/:id — solo admin
-router.delete('/copy-types/:id', authenticate, authorizeAdmin, async (req, res) => {
+router.delete('/copy-types/:id', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
   const { id } = req.params;
   try {
-    const result = await pool.query('DELETE FROM copy_types WHERE id=$1', [id]);
+    const result = await req.db.query('DELETE FROM copy_types WHERE id=$1', [id]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Tipo copia non trovato' });
     res.json({ message: 'Tipo copia eliminato' });
   } catch (err) {
@@ -83,9 +84,9 @@ router.delete('/copy-types/:id', authenticate, authorizeAdmin, async (req, res) 
 
 // GET /api/print-settings — tutti gli utenti autenticati
 // Ritorna la configurazione completa (join con copy_types) ordinata per sort_order
-router.get('/', authenticate, async (req, res) => {
+router.get('/', authenticate, tenantScope, async (req, res) => {
   try {
-    const { rows } = await pool.query(`
+    const { rows } = await req.db.query(`
       SELECT ps.id, ps.copy_type_id, ct.name AS copy_type_name, ct.label AS copy_type_label,
              ps.printer_type, ps.printer_address, ps.enabled, ps.sort_order
       FROM print_settings ps
@@ -101,13 +102,13 @@ router.get('/', authenticate, async (req, res) => {
 
 // POST /api/print-settings/reorder — solo admin
 // Aggiorna l'ordine di stampa globale delle copie in blocco
-router.post('/reorder', authenticate, authorizeAdmin, async (req, res) => {
+router.post('/reorder', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
   const { order } = req.body; // Array di id ordinati, es: [4, 1, 2, 5, 3]
   if (!Array.isArray(order)) {
     return res.status(400).json({ error: 'Formato ordine non valido' });
   }
 
-  const client = await pool.connect();
+  const client = req.db; // connessione dedicata già scoped al tenant
   try {
     await client.query('BEGIN');
     for (let i = 0; i < order.length; i++) {
@@ -122,13 +123,11 @@ router.post('/reorder', authenticate, authorizeAdmin, async (req, res) => {
     await client.query('ROLLBACK');
     logger.error({ err }, 'Errore POST /print-settings/reorder:');
     res.status(500).json({ error: 'Errore server durante il riordinamento' });
-  } finally {
-    client.release();
   }
 });
 
 // PUT /api/print-settings/:id — solo admin
-router.put('/:id', authenticate, authorizeAdmin, async (req, res) => {
+router.put('/:id', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
   const { id } = req.params;
   const { printer_type, printer_address, enabled } = req.body;
 
@@ -142,7 +141,7 @@ router.put('/:id', authenticate, authorizeAdmin, async (req, res) => {
   }
 
   try {
-    const { rows } = await pool.query(
+    const { rows } = await req.db.query(
       `UPDATE print_settings
        SET printer_type=$1, printer_address=$2, enabled=$3
        WHERE id=$4 RETURNING *`,
