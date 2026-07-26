@@ -1,4 +1,3 @@
-
 // exports.js
 const BWIPJS_VERSION = '__BWIPJS_VERS__';
 
@@ -13,36 +12,41 @@ require('stream');  // fix for https://github.com/nodejs/node/issues/37021
 //
 // This function is asynchronous.
 function Request(req, res, extra) {
-    var opts = url.parse(req.url, true).query;
+    try {
+        var opts = url.parse(req.url, true).query;
 
-    // Convert empty !parameters to false.
-    // Convert empty parameters to true.
-    for (var id in opts) {
-        if (opts[id] === '') {
-            if (id[0] == '!') {
-                opts[id.substr(1)] = false;
-            } else {
-                opts[id] = true;
+        // Convert empty !parameters to false.
+        // Convert empty parameters to true.
+        for (var id in opts) {
+            if (opts[id] === '') {
+                if (id[0] == '!') {
+                    opts[id.substr(1)] = false;
+                } else {
+                    opts[id] = true;
+                }
             }
         }
-    }
 
-    // Add in server options/overrides
-    if (extra) {
-        for (var id in extra) {
-            opts[id] = extra[id];
+        // Add in server options/overrides
+        if (extra) {
+            for (var id in extra) {
+                opts[id] = extra[id];
+            }
         }
-    }
 
-    ToBuffer(opts, function(err, png) {
-        if (err) {
-            res.writeHead(400, { 'Content-Type':'text/plain' });
-            res.end('' + (err.stack || err), 'utf-8');
-        } else {
-            res.writeHead(200, { 'Content-Type':'image/png' });
-            res.end(png, 'binary');
-        }
-    });
+        ToBuffer(opts, function(err, png) {
+            if (err) {
+                res.writeHead(400, { 'Content-Type':'text/plain' });
+                res.end('' + err, 'utf-8');
+            } else {
+                res.writeHead(200, { 'Content-Type':'image/png' });
+                res.end(png, 'binary');
+            }
+        });
+    } catch (e) {
+        res.writeHead(400, { 'Content-Type':'text/plain' });
+        res.end('' + e, 'utf-8');
+    }
 }
 
 // bwipjs.toBuffer(options[, callback])
@@ -94,19 +98,24 @@ function _ToAny(encoder, opts, drawing) {
     }
 }
 //@@BEGIN-BROWSER-EXPORTS@@
+// Context insensitive canvas element test.
+function IsCanvas(elt) {
+    return elt && /HTMLCanvasElement|OffscreenCanvas/.test(Object.getPrototypeOf(elt).constructor.name);
+}
 // bwipjs.toCanvas(canvas, options)
 // bwipjs.toCanvas(options, canvas)
 //
 // Uses the built-in canvas drawing.
 //
-// `canvas` can be an HTMLCanvasElement or an ID string or unique selector string.
+// `canvas` can be an HTMLCanvasElement|OffscreenCanvas or
+// an ID string or unique selector string.
 // `options` are a bwip-js/BWIPP options object.
 //
 // This function is synchronous and throws on error.
 //
-// Returns the HTMLCanvasElement.
+// Returns the canvas element.
 function ToCanvas(cvs, opts) {
-    if (typeof opts == 'string' || opts instanceof HTMLCanvasElement) {
+    if (typeof opts == 'string' || IsCanvas(opts)) {
         let tmp = cvs;
         cvs = opts;
         opts = tmp;
@@ -118,30 +127,31 @@ function ToCanvas(cvs, opts) {
 // Polymorphic internal interface
 // _ToAny(encoder, string, opts) : HTMLCanvasElement
 // _ToAny(encoder, HTMLCanvasElement, opts) : HTMLCanvasElement
+// _ToAny(encoder, OffscreenCanvas, opts) : OffscreenCanvas
 // _ToAny(encoder, opts, string) : HTMLCanvasElement
-// _ToAny(encoder, opts, HTMLCanvasElement) : HTMLCanvasElement
+// _ToAny(encoder, opts, OffscreenCanvas) : OffscreenCanvas
 // _ToAny(encoder, opts, drawing) : any
 //
 // 'string` can be either an `id` or query selector returning a single canvas element.
 function _ToAny(encoder, opts, drawing) {
     if (typeof opts == 'string') {
         var canvas = document.getElementById(opts) || document.querySelector(opts);
-        if (!(canvas instanceof HTMLCanvasElement)) {
+        if (!IsCanvas(canvas)) {
             throw new Error('bwipjs: `' + opts + '`: not a canvas');
         }
         opts = drawing;
         drawing = DrawingCanvas(canvas);
-    } else if (opts instanceof HTMLCanvasElement) {
+    } else if (IsCanvas(opts)) {
         var canvas = opts;
         opts = drawing;
         drawing = DrawingCanvas(canvas);
     } else if (typeof drawing == 'string') {
         var canvas = document.getElementById(drawing) || document.querySelector(drawing);
-        if (!(canvas instanceof HTMLCanvasElement)) {
+        if (!IsCanvas(canvas)) {
             throw new Error('bwipjs: `' + drawing + '`: not a canvas');
         }
         drawing = DrawingCanvas(canvas);
-    } else if (drawing instanceof HTMLCanvasElement) {
+    } else if (IsCanvas(drawing)) {
         drawing = DrawingCanvas(drawing);
     } else if (!drawing || typeof drawing != 'object' || !drawing.init) {
         throw new Error('bwipjs: not a canvas or drawing object');
@@ -272,9 +282,12 @@ function ToSVG(opts) {
 }
 
 function FixupOptions(opts) {
+    // Fix up scale[XY]
     var scale   = opts.scale || 2;
-    var scaleX  = +opts.scaleX || scale;
-    var scaleY  = +opts.scaleY || scaleX;
+    var scaleX  = opts.scaleX || scale;
+    var scaleY  = opts.scaleY || scaleX;
+    opts.scaleX = scaleX < 1 ? 2 : scaleX;
+    opts.scaleY = scaleY < 1 ? opts.scaleX : scaleY;
 
     // Fix up padding.
     opts.paddingleft = padding(opts.paddingleft, opts.paddingwidth, opts.padding, scaleX);
@@ -318,16 +331,17 @@ function FixupOptions(opts) {
     // c is the general padding value.
     // s is the scale, either scalex or scaley
     function padding(a, b, c, s) {
+        var p;
         if (a != null) {
-            a = a >>> 0;
-            return a*s >>> 0;
+            p = a|0;
+        } else if (b != null) {
+            p = b|0;
+        } else {
+            p = c|0;
         }
-        if (b != null) {
-            b = b >>> 0;
-            return b*s >>> 0;
-        }
-        c = c >>> 0;
-        return (c*s >>> 0) || 0;
+        // Keep the padding value reasonable
+        p = p < 0 ? 0 : (p > 999 ? 999 : p); 
+        return p*s|0;
     }
 }
 
@@ -371,9 +385,8 @@ function _Render(encoder, options, drawing) {
     drawing.setopts && drawing.setopts(options);
 
     // Set the bwip-js defaults
-    var scale   = options.scale || 2;
-    var scaleX  = +options.scaleX || scale;
-    var scaleY  = +options.scaleY || scaleX;
+    var scaleX  = options.scaleX;
+    var scaleY  = options.scaleY;
     var rotate  = options.rotate || 'N';
 
     // Create a barcode writer object.  This is the interface between
@@ -438,23 +451,15 @@ function ToRaw(bcid, text, options) {
 
     // bwip-js uses Maps to emulate PostScript dictionary objects; but Maps
     // are not a typical/expected return value.  Convert to plain-old-objects.
-    var ids = { pixs:1, pixx:1, pixy:1, sbs:1, bbs:1, bhs:1, width:1, height:1 };
+    var ids = { pixs:1, pixx:1, pixy:1, sbs:1, bbs:1, bhs:1, txt:1, width:1, height:1 };
     for (var i = 0; i < stack.length; i++) {
         var elt = stack[i];
         if (elt instanceof Map) {
             var obj = {};
-            // Could they make Maps any harder to iterate over???
             for (var keys = elt.keys(), size = elt.size, k = 0; k < size; k++) {
                 var id = keys.next().value;
                 if (ids[id]) {
-                    var val = elt.get(id);
-                    if (val instanceof Array) {
-                        // The postscript arrays have extra named properties
-                        // to emulate array views.  Return cleaned up arrays.
-                        obj[id] = val.b.slice(val.o, val.o + val.length);
-                    } else {
-                        obj[id] = val;
-                    }
+                    obj[id] = pod(elt.get(id));
                 }
             }
             stack[i] = obj;
@@ -464,4 +469,20 @@ function ToRaw(bcid, text, options) {
         }
     }
     return stack;
+
+    function pod(val) {
+        if (val instanceof Array) {
+            // The postscript arrays have extra named properties
+            // to emulate array views.  Return cleaned up arrays.
+            val = val.b.slice(val.o, val.o + val.length);
+
+            // Walk the array and convert each element
+            for (let j = 0, l = val.length; j < l; j++) {
+                val[j] = pod(val[j]);
+            }
+        } else if (val instanceof Uint8Array) {
+            val = String.fromCharCode.apply(null, val);
+        }
+        return val;
+    }
 }

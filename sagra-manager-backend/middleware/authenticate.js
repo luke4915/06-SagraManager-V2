@@ -15,8 +15,8 @@ export function authenticate(req, res, next) {
   }
 
   try {
-    const { id, username, role } = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = { id, username, role };
+    const { id, username, role, tenantId } = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = { id, username, role, tenantId };
     next();
   } catch (err) {
     if (err.name === 'TokenExpiredError')

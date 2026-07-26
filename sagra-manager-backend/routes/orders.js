@@ -4,10 +4,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { pool } from '../db.js';
 import { authenticate, DISCOUNT_ROLES } from '../middleware/authenticate.js';
+import { tenantScope, withTenantClient } from '../middleware/tenantScope.js';
 import { printOrderBatch } from '../utils/receiptTemplates.js';
 import { computeEffectivePrice, sanitizeAdjustment } from '../utils/pricing.js';
 import logger from '../logger.js';
 import { logAudit } from '../utils/auditLogger.js';
+import { createOrderSchema } from '../schemas/orderSchema.js';
 
 const router = express.Router();
 const TMP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'tmp');
@@ -21,10 +23,10 @@ function safeParseJSON(value, fallback = []) {
 const TERMINAL_STATUSES = ['canceled', 'completed'];
 
 // Helper per calcolare il numero d'ordine da 1 a 100 con prefisso alfabetico (A1-A100 -> B1-B100...)
-async function getDisplayOrderId(orderId, timestamp) {
+async function getDisplayOrderId(db, orderId, timestamp) {
   try {
     // 1. Troviamo l'inizio della sessione attiva
-    const { rows: sessions } = await pool.query(
+    const { rows: sessions } = await db.query(
       'SELECT start_time FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
     );
 
@@ -34,7 +36,7 @@ async function getDisplayOrderId(orderId, timestamp) {
     }
 
     // 2. Contiamo basandoci sull'id sequenziale (evita bug di millisecondi identici)
-    const { rows: countRows } = await pool.query(
+    const { rows: countRows } = await db.query(
       'SELECT COUNT(*) as count FROM orders WHERE created_at >= $1 AND id <= $2',
       [startTime, orderId]
     );
@@ -58,8 +60,8 @@ async function getDisplayOrderId(orderId, timestamp) {
   }
 }
 
-async function printOrder(orderData, sessionName) {
-  const { rows: settings } = await pool.query(
+async function printOrder(db, orderData, sessionName) {
+  const { rows: settings } = await db.query(
     `SELECT ps.printer_type, ps.printer_address, ct.name AS copy_type
      FROM print_settings ps
      JOIN copy_types ct ON ct.id = ps.copy_type_id
@@ -71,7 +73,7 @@ async function printOrder(orderData, sessionName) {
   const productIds = [...new Set(orderData.items.map(i => i.id).filter(Boolean))];
   const destMap = {};
   if (productIds.length) {
-    const { rows: products } = await pool.query(
+    const { rows: products } = await db.query(
       'SELECT id, print_destination FROM products WHERE id = ANY($1)',
       [productIds]
     );
@@ -81,7 +83,7 @@ async function printOrder(orderData, sessionName) {
   const logoPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'logo_5calzoni.png');
 
   // Calcoliamo il numero progressivo specifico della serata (1-100) da stampare
-  const displayId = await getDisplayOrderId(orderData.id, orderData.created_at);
+  const displayId = await getDisplayOrderId(db, orderData.id, orderData.created_at);
 
   const enrichedOrder = {
     ...orderData,
@@ -103,12 +105,12 @@ async function printOrder(orderData, sessionName) {
 export default function (broadcast) {
 
   // GET /orders
-  router.get('/', authenticate, async (req, res) => {
+  router.get('/', authenticate, tenantScope, async (req, res) => {
     try {
       let query = 'SELECT * FROM orders ORDER BY created_at DESC';
       let params = [];
       if (req.query.session === 'active') {
-        const { rows: sessions } = await pool.query(
+        const { rows: sessions } = await req.db.query(
           'SELECT start_time, end_time FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
         );
         if (!sessions.length) return res.json([]);
@@ -116,10 +118,10 @@ export default function (broadcast) {
         query = `SELECT * FROM orders WHERE created_at >= $1 ${end_time ? 'AND created_at <= $2' : ''} ORDER BY created_at DESC`;
         params = end_time ? [start_time, end_time] : [start_time];
       }
-      const { rows } = await pool.query(query, params);
+      const { rows } = await req.db.query(query, params);
 
       // 🚀 FIX CRITICO: Recuperiamo la mappatura attuale dei prodotti dal DB per associare le categorie
-      const { rows: dbProducts } = await pool.query('SELECT id, category FROM products');
+      const { rows: dbProducts } = await req.db.query('SELECT id, category FROM products');
       const categoryMap = Object.fromEntries(dbProducts.map(p => [p.id, p.category || 'Altro']));
 
       // Rispediamo i dati mappandoli in modo che ogni item abbia la sua categoria reale
@@ -141,7 +143,7 @@ export default function (broadcast) {
   });
 
   // POST /orders (Creazione Ordine - TRACCIATO)
-  router.post('/', authenticate, async (req, res) => {
+  router.post('/', authenticate, tenantScope, async (req, res) => {
     const parsed = createOrderSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: 'Richiesta non valida', details: parsed.error.flatten() });
@@ -149,7 +151,7 @@ export default function (broadcast) {
     const { items, status, is_takeaway } = parsed.data;
 
     const productIds = [...new Set(items.map(i => i.id).filter(Boolean))];
-    const { rows: dbProducts } = await pool.query(
+    const { rows: dbProducts } = await req.db.query(
       'SELECT id, price FROM products WHERE id = ANY($1)', [productIds]
     );
     const priceMap = Object.fromEntries(dbProducts.map(p => [p.id, parseFloat(p.price)]));
@@ -190,7 +192,7 @@ export default function (broadcast) {
     const verifiedTotal = verifiedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
     // Verifica stock prima di aprire la transazione
-    const stockChecks = await pool.query(
+    const stockChecks = await req.db.query(
       'SELECT id, name, stock, stock_enabled FROM products WHERE id = ANY($1) AND stock_enabled = true',
       [productIds]
     );
@@ -200,7 +202,7 @@ export default function (broadcast) {
         return res.status(409).json({ error: `Prodotto esaurito: ${p.name}` });
     }
 
-    const client = await pool.connect();
+    const client = req.db; // connessione dedicata già scoped al tenant
     try {
       await client.query('BEGIN');
       // order_type: 'gift' se OGNI riga è omaggio, 'discount' se almeno una riga
@@ -242,12 +244,12 @@ export default function (broadcast) {
         itemCount: verifiedItems.length
       });
 
-      const { rows: sessionRows } = await pool.query(
+      const { rows: sessionRows } = await req.db.query(
         'SELECT name FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
       );
 
       // Calcoliamo il numero cortissimo (1-100) per l'interfaccia grafica e i messaggi WebSocket
-      const displayId = await getDisplayOrderId(orderId, timestamp);
+      const displayId = await getDisplayOrderId(req.db, orderId, timestamp);
       const orderData = { id: orderId, created_at: timestamp, items: verifiedItems, total: verifiedTotal, is_takeaway: !!is_takeaway };
 
       if (broadcast) {
@@ -268,34 +270,66 @@ export default function (broadcast) {
       // Restituiamo al client web sia l'ID reale che quello visualizzato
       res.json({ success: true, orderId, displayOrderId: displayId });
 
-      printOrder(orderData, sessionRows[0]?.name || 'Serata').catch(err =>
-        logger.error({ err }, 'Errore printOrder')
-      );
+      // Fire-and-forget: gira DOPO la risposta, quindi req.db è già stato
+      // rilasciato al pool. Serve una connessione scoped indipendente.
+      withTenantClient(req.user.tenantId, (db) =>
+        printOrder(db, orderData, sessionRows[0]?.name || 'Serata')
+      ).catch(err => logger.error({ err }, 'Errore printOrder'));
     } catch (err) {
       await client.query('ROLLBACK');
       logger.error({ err }, 'Errore POST /api/orders')
       res.status(500).json({ error: "Errore durante l'invio dell'ordine" });
-    } finally {
-      client.release();
     }
   });
 
   // PUT /orders/:id
-  router.put('/:id', authenticate, async (req, res) => {
+  router.put('/:id', authenticate, tenantScope, async (req, res) => {
     try {
       const { id } = req.params;
       const { status } = req.body;
-      const { rows: current } = await pool.query('SELECT status FROM orders WHERE id=$1', [id]);
+      const { rows: current } = await req.db.query('SELECT status, completed_at, created_at FROM orders WHERE id=$1', [id]);
       if (!current.length) return res.status(404).json({ error: 'Ordine non trovato' });
-      if (TERMINAL_STATUSES.includes(current[0].status))
+
+      const CANCEL_WINDOW_MS = 5 * 60 * 1000;
+      // Ordini modalità "semplice": nascono già come 'completed' ma senza completed_at
+      // (valorizzato solo dal flusso cucina). Per questi si può ancora stornare entro 5 minuti.
+      const isSimpleModeQuickCancel = status === 'canceled'
+        && current[0].status === 'completed'
+        && !current[0].completed_at
+        && (Date.now() - new Date(current[0].created_at).getTime()) <= CANCEL_WINDOW_MS;
+
+      if (TERMINAL_STATUSES.includes(current[0].status) && !isSimpleModeQuickCancel)
         return res.status(409).json({ error: `Impossibile modificare un ordine in stato "${current[0].status}"` });
 
       const completedAt = status === 'completed' ? new Date().toISOString() : null;
-      const { rows } = await pool.query(
+      const { rows } = await req.db.query(
         `UPDATE orders SET status=$1 ${completedAt ? ', completed_at=$3' : ''} WHERE id=$2 RETURNING *`,
         completedAt ? [status, id, completedAt] : [status, id]
       );
       const updated = { ...rows[0], items: safeParseJSON(rows[0].items) };
+
+      // Storno: ripristina lo stock dei prodotti scalato alla creazione dell'ordine
+      if (status === 'canceled') {
+        const productIds = updated.items.map(i => i.id);
+        if (productIds.length) {
+          const { rows: stockProducts } = await req.db.query(
+            'SELECT id, stock, visible FROM products WHERE id = ANY($1) AND stock_enabled = true',
+            [productIds]
+          );
+          for (const p of stockProducts) {
+            const restored = updated.items.find(i => i.id === p.id)?.quantity || 0;
+            if (!restored) continue;
+            const newStock = (p.stock || 0) + restored;
+            await req.db.query(
+              'UPDATE products SET stock = $1, visible = CASE WHEN visible = false AND $1 > 0 THEN true ELSE visible END WHERE id = $2',
+              [newStock, p.id]
+            );
+            if (broadcast) {
+              broadcast({ type: 'product_stock_updated', product: { id: p.id, stock: newStock, visible: true } });
+            }
+          }
+        }
+      }
 
       await logAudit(req.user.id, 'UPDATE_ORDER_STATUS', {
         orderId: id,
@@ -312,18 +346,19 @@ export default function (broadcast) {
   });
 
   // POST /orders/:id/reprint
-  router.post('/:id/reprint', authenticate, async (req, res) => {
+  router.post('/:id/reprint', authenticate, tenantScope, async (req, res) => {
     try {
-      const { rows } = await pool.query('SELECT * FROM orders WHERE id=$1', [req.params.id]);
+      const { rows } = await req.db.query('SELECT * FROM orders WHERE id=$1', [req.params.id]);
       if (!rows.length) return res.status(404).json({ error: 'Ordine non trovato' });
       const order = rows[0];
 
       await logAudit(req.user.id, 'REPRINT_ORDER', { orderId: req.params.id });
 
-      const { rows: sessionRows } = await pool.query(
+      const { rows: sessionRows } = await req.db.query(
         'SELECT name FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
       );
       await printOrder(
+        req.db,
         { id: order.id, created_at: order.created_at, items: safeParseJSON(order.items), total: parseFloat(order.total) },
         sessionRows[0]?.name || 'Serata'
       );
@@ -335,17 +370,35 @@ export default function (broadcast) {
   });
 
   // GET /orders/kds
+  // ⚠️ TODO multi-tenant: questa route è pubblica (nessun authenticate), quindi
+  // non sa per quale tenant servire i dati. Con FORCE ROW LEVEL SECURITY attivo,
+  // una query senza app.tenant_id impostato non vede NESSUNA riga (non tutte!),
+  // quindi senza questo stop-gap il KDS smetterebbe di funzionare subito dopo
+  // la migrazione. Per ora è agganciata al tenant "default" (quello dei dati
+  // migrati da Windows). Prima del multi-tenant vero va decisa un'identificazione
+  // reale (slug nell'URL? token pubblico per-tenant?) e sostituita qui sotto.
+  let defaultTenantIdCache = null;
   router.get('/kds', async (req, res) => {
     try {
-      const { rows: sessions } = await pool.query(
-        'SELECT start_time FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
-      );
-      if (!sessions.length) return res.json([]);
-      const { rows } = await pool.query(
-        `SELECT * FROM orders WHERE status IN ('pending','preparing') AND created_at >= $1 ORDER BY created_at DESC`,
-        [sessions[0].start_time]
-      );
-      res.json(rows.map(o => ({ ...o, items: safeParseJSON(o.items).map(i => ({ ...i, note: i.note || '' })) })));
+      if (defaultTenantIdCache === null) {
+        const { rows } = await pool.query("SELECT id FROM tenants WHERE slug = 'default'");
+        defaultTenantIdCache = rows[0]?.id ?? null;
+      }
+      if (defaultTenantIdCache === null) return res.json([]);
+
+      const data = await withTenantClient(defaultTenantIdCache, async (db) => {
+        const { rows: sessions } = await db.query(
+          'SELECT start_time FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
+        );
+        if (!sessions.length) return [];
+        const { rows } = await db.query(
+          `SELECT * FROM orders WHERE status IN ('pending','preparing') AND created_at >= $1 ORDER BY created_at DESC`,
+          [sessions[0].start_time]
+        );
+        return rows.map(o => ({ ...o, items: safeParseJSON(o.items).map(i => ({ ...i, note: i.note || '' })) }));
+      });
+
+      res.json(data);
     } catch (err) {
       logger.error({ err }, 'Errore GET /api/orders/kds');
       res.status(500).json({ error: 'Errore recupero ordini KDS' });

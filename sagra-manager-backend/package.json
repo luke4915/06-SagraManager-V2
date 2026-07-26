@@ -14,7 +14,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@myteril/node-win-printer": "^1.1.5",
     "bcrypt": "^6.0.0",
     "body-parser": "^2.2.0",
     "bwip-js": "^4.7.0",
@@ -40,5 +39,9 @@
   "devDependencies": {
     "nodemon": "^3.1.10",
     "sharp": "^0.34.5"
+  },
+  "allowScripts": {
+    "bcrypt@6.0.0": true,
+    "sharp@0.34.5": true
   }
 }
