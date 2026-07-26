@@ -23,7 +23,7 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 10 }) => {
             key={cat}
             onClick={() => setActiveCategory(cat)}
             className={`
-              shrink-0 h-9 px-4 rounded-xl font-black text-[10px] tracking-widest uppercase whitespace-nowrap border transition-all duration-150
+              shrink-0 h-9 px-4 rounded-xl font-black text-[10px] tracking-widest uppercase whitespace-nowrap border cursor-pointer hover:bg-[var(--accent-hover)] transition-all duration-150
               ${activeCategory === cat
                 ? 'bg-[var(--accent)] border-[var(--accent)] text-white shadow-md shadow-[var(--accent-shadow)]'
                 : 'bg-[var(--bg-card-2)] border-[var(--border)] text-[var(--text-muted)]'}

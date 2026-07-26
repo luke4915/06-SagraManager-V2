@@ -56,7 +56,8 @@ app.use(cors({
     if (!origin) return cb(null, true);
     const ok = origin.includes('localhost') ||
       origin.includes('127.0.0.1') ||
-      origin.includes('192.168.')
+      origin.includes('192.168.') ||
+      origin.includes('default.standmanager.local')
     cb(ok ? null : new Error('CORS non consentito'), ok);
   },
   credentials: true,

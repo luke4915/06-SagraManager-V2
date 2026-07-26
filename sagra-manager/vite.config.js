@@ -5,11 +5,16 @@ import fs from 'fs'
 import mkcert from 'vite-plugin-mkcert'
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), mkcert()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    mkcert({ hosts: ['localhost', '127.0.0.1', 'default.standmanager.local'] })
+  ],
   server: {
     https: true,
     host: true,
     port: 5173,
-    strictPort: true
+    strictPort: true,
+    allowedHosts: ['default.standmanager.local']
   }
 })
