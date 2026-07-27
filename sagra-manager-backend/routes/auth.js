@@ -1,6 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { pool } from '../db.js';
 import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
 import { tenantScope, lookupUserForLogin, withTenantClient } from '../middleware/tenantScope.js';
 import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
@@ -8,6 +9,7 @@ import logger from '../logger.js';
 
 const router = express.Router();
 
+// 🔴 MODIFICA: Includiamo anche il 'theme' nel token JWT per passarlo al frontend
 const signToken = (user) => jwt.sign(
   { id: user.id, username: user.username, role: user.role, theme: user.theme || 'dark', tenantId: user.tenant_id },
   process.env.JWT_SECRET,
@@ -29,8 +31,22 @@ router.post('/login', resolveTenantFromHost, async (req, res) => {
   try {
     const user = await lookupUserForLogin(username.trim());
     if (!user) return res.status(401).json({ error: 'Utente non trovato' });
+    // L'username è unico a livello globale, ma l'accesso deve avvenire dal
+    // sottodominio del proprio tenant: altrimenti un utente valido di un
+    // altro tenant potrebbe loggarsi qui e vedere/operare sui SUOI dati
+    // (correttamente isolati da RLS) ma dall'URL sbagliato — confuso e non voluto.
     if (user.tenant_id !== req.tenantId)
-      return res.status(401).json({ error: 'Utente non trovato' });
+      return res.status(401).json({ error: 'Utente non trovato' }); // stesso messaggio: non riveliamo l'esistenza dell'utente su un altro tenant
+
+    const { rows: tenantRows } = await pool.query('SELECT expires_at, active FROM tenants WHERE id = $1', [user.tenant_id]);
+    const tenant = tenantRows[0];
+    if (!tenant?.active) {
+      return res.status(403).json({ error: 'Account disattivato. Contatta l\'assistenza.', code: 'TENANT_INACTIVE' });
+    }
+    if (tenant.expires_at && new Date(tenant.expires_at) < new Date()) {
+      return res.status(402).json({ error: "Licenza scaduta. Contatta l'assistenza per rinnovarla.", code: 'LICENSE_EXPIRED' });
+    }
+
     const needsPassword = !user.password_hash?.trim();
     if (!needsPassword && !await bcrypt.compare(password || '', user.password_hash))
       return res.status(401).json({ error: 'Password errata' });
@@ -44,9 +60,10 @@ router.post('/login', resolveTenantFromHost, async (req, res) => {
   }
 });
 
-// REFRESH TOKEN
+// REFRESH TOKEN (Best Practice: Resiliente e Indipendente)
 router.post('/refresh', async (req, res) => {
   try {
+    // 1. Recuperiamo il cookie in modo sicuro
     const token = req.cookies?.token;
     if (!token) {
       return res.status(401).json({ error: 'Token mancante' });
@@ -54,12 +71,15 @@ router.post('/refresh', async (req, res) => {
 
     let decoded;
     try {
+      // 2. Decodifichiamo il token IGNORANDO la scadenza temporale.
+      // Questo permette il refresh anche se il frontend arriva in ritardo di qualche minuto.
       decoded = jwt.verify(token, process.env.JWT_SECRET, { ignoreExpiration: true });
     } catch (jwtErr) {
       logger.warn({ jwtErr }, 'Tentativo di refresh con token corrotto o alterato');
       return res.status(401).json({ error: 'Token non valido' });
     }
 
+    // 3. Controllo di sicurezza sul DB: l'utente esiste ancora ed è attivo?
     const user = await withTenantClient(decoded.tenantId, async (db) => {
       const { rows } = await db.query('SELECT * FROM users WHERE id = $1', [decoded.id]);
       return rows[0] || null;
@@ -68,6 +88,7 @@ router.post('/refresh', async (req, res) => {
       return res.status(401).json({ error: 'Utente non trovato o disabilitato' });
     }
 
+    // 4. Generiamo il nuovo token e sovrascriviamo il vecchio cookie
     const newToken = signToken(user);
     setCookie(res, newToken);
 
@@ -122,7 +143,7 @@ router.post('/admin/createUser', authenticate, authorizeAdmin, tenantScope, asyn
 
     res.status(201).json({ message: 'Utente creato con successo', user: rows[0] });
   } catch (err) {
-    if (err.code === '23505')
+    if (err.code === '23505') // unique_violation: username già usato (magari da un altro tenant, non visibile via RLS)
       return res.status(409).json({ error: 'Username già esistente' });
     logger.error({ err }, 'Errore createUser');
     res.status(500).json({ error: 'Errore server' });
@@ -130,6 +151,7 @@ router.post('/admin/createUser', authenticate, authorizeAdmin, tenantScope, asyn
 });
 
 // ME
+// 🔴 MODIFICA: Restituiamo req.user assicurandoci che contenga il flag theme atteso dal frontend
 router.get('/me', authenticate, (req, res) => {
   res.json({
     id: req.user.id,

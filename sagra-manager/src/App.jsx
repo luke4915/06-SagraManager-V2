@@ -22,6 +22,7 @@ import Statistics from './components/shared/Statistics';
 import KDS from './pages/KDSPage';
 import Login from './pages/LoginPage';
 import MenuPage from './pages/MenuPage';
+import MasterPage from './pages/MasterPage';
 import { getDiscountedTotal } from './utils/pricing';
 
 import { API_URL, WS_URL } from './config/api';
@@ -295,12 +296,14 @@ const App = () => {
     <Routes>
       <Route path="/login" element={<Login onLogin={login} />} />
       <Route path="/menu" element={<MenuPage />} />
+      <Route path="/master" element={<MasterPage />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
 
   if (needsPasswordChange) return <ChangePassword user={user} onPasswordChanged={() => setNeedsPasswordChange(false)} />;
   if (window.location.pathname === '/menu') return <MenuPage />;
+  if (window.location.pathname === '/master') return <MasterPage />;
 
   const canDiscount = DISCOUNT_ROLES.includes(user?.role);
 

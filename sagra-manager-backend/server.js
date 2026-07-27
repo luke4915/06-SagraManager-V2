@@ -70,11 +70,12 @@ app.use('/api/assets', express.static(path.join(__dirname, 'assets')));
 app.use('/api', apiLimiter);
 // Rate limiting specifico
 app.use('/api/auth/login', loginLimiter);
+app.use('/api/master/login', loginLimiter);
 app.use('/api/orders', ordersLimiter);
 
 // 🔴 MODIFICA: Caricamento sicuro dei certificati mkcert da variabili d'ambiente con fallback sul tuo file attuale
-const keyPath = process.env.HTTPS_KEY_PATH
-const certPath = process.env.HTTPS_CERT_PATH
+const keyPath = process.env.HTTPS_KEY_PATH || path.resolve(__dirname, './192.168.1.99+2-key.pem');
+const certPath = process.env.HTTPS_CERT_PATH || path.resolve(__dirname, './192.168.1.99+2.pem');
 
 let httpsOptions;
 try {
