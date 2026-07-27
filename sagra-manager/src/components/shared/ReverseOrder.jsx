@@ -2,15 +2,18 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { X, AlertTriangle, Clock } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 
-const API_URL = import.meta.env.VITE_API_URL;
+import { API_URL } from '../../config/api';
 const CANCEL_WINDOW_MS = 5 * 60 * 1000; // deve combaciare con il backend
 
+// Un ordine è stornabile se: è ancora pending/preparing (avanzata, sempre stornabile
+// finché non è completato) oppure è 'completed' ma senza completed_at (modalità
+// semplice, mai passato dalla cucina) ed è entro 5 minuti dalla creazione.
 const cancelDeadline = (order) => {
   if (order.status === 'pending' || order.status === 'preparing') return Infinity;
   if (order.status === 'completed' && !order.completed_at) {
     return new Date(order.created_at).getTime() + CANCEL_WINDOW_MS;
   }
-  return -Infinity;
+  return -Infinity; // non stornabile
 };
 
 const ReverseOrder = ({ onClose }) => {
@@ -33,6 +36,7 @@ const ReverseOrder = ({ onClose }) => {
 
   useEffect(() => { load(); }, [load]);
 
+  // Tick ogni secondo: aggiorna i countdown e fa sparire gli ordini appena scadono
   useEffect(() => {
     const tick = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(tick);

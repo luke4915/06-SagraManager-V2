@@ -1,7 +1,6 @@
 import { useState } from 'react';
+import { API_URL } from '../config/api';
 import { useToast } from '../context/ToastContext'; // Hook globale
-
-const API_URL = import.meta.env.VITE_API_URL;
 
 // Rimosso showToast dalle props, ora lo prendiamo dal Context
 const Login = ({ onLogin }) => {
@@ -61,16 +60,13 @@ const Login = ({ onLogin }) => {
 
       {/* LOGO */}
       <img
-        src="/MainCourse_logo_black.png"
+        src="/logo_StandManager_ESC_POS.png"
         alt="Logo"
         className="w-40 mb-6 drop-shadow-md border-2 border-black bg-white p-2"
       />
 
-      <h1 className="text-2xl font-black text-[var(--text-main)]">
-        Welcome to MainCourse
-      </h1>
-      <h1 className="text-base mb-4 text-[var(--text-main)]">
-        Please log-in:
+      <h1 className="text-2xl font-black mb-6 text-[var(--text-main)]">
+        Login Stand Manager
       </h1>
 
       <div className="flex flex-col gap-4 w-80">

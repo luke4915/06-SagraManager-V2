@@ -8,13 +8,13 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    mkcert({ hosts: ['localhost', '127.0.0.1', 'default.standmanager.local'] })
+    mkcert({ hosts: ['localhost', '127.0.0.1', 'default.standmanager.local', 'test.standmanager.local'] })
   ],
   server: {
     https: true,
     host: true,
     port: 5173,
     strictPort: true,
-    allowedHosts: ['default.standmanager.local']
+    allowedHosts: ['default.standmanager.local', 'test.standmanager.local']
   }
 })

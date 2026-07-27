@@ -24,11 +24,10 @@ import Login from './pages/LoginPage';
 import MenuPage from './pages/MenuPage';
 import { getDiscountedTotal } from './utils/pricing';
 
+import { API_URL, WS_URL } from './config/api';
 // Ruoli abilitati ad applicare sconti/omaggi (specchio di DISCOUNT_ROLES nel backend)
 const DISCOUNT_ROLES = ['admin', 'responsabile'];
 
-const API_URL = import.meta.env.VITE_API_URL;
-const WS_URL = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:3000`;
 
 const App = () => {
   const { user, loading, login, logout } = useAuth();

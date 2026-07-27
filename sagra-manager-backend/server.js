@@ -24,6 +24,7 @@ import settingsRoutes from './routes/settings.js';
 import { loginLimiter, apiLimiter, ordersLimiter } from './middleware/rateLimiter.js';
 import logger from './logger.js';
 import { pool } from './db.js';
+import masterRoutes from './routes/master.js';
 
 // escpos.USB = escposUsb;
 dotenv.config();
@@ -57,7 +58,7 @@ app.use(cors({
     const ok = origin.includes('localhost') ||
       origin.includes('127.0.0.1') ||
       origin.includes('192.168.') ||
-      origin.includes('default.standmanager.local')
+      origin.includes('.standmanager.local')
     cb(ok ? null : new Error('CORS non consentito'), ok);
   },
   credentials: true,
@@ -72,8 +73,8 @@ app.use('/api/auth/login', loginLimiter);
 app.use('/api/orders', ordersLimiter);
 
 // 🔴 MODIFICA: Caricamento sicuro dei certificati mkcert da variabili d'ambiente con fallback sul tuo file attuale
-const keyPath = process.env.HTTPS_KEY_PATH || path.resolve(__dirname, './192.168.1.99+2-key.pem');
-const certPath = process.env.HTTPS_CERT_PATH || path.resolve(__dirname, './192.168.1.99+2.pem');
+const keyPath = process.env.HTTPS_KEY_PATH
+const certPath = process.env.HTTPS_CERT_PATH
 
 let httpsOptions;
 try {
@@ -113,6 +114,7 @@ app.use('/api/orders', orderRoutes(broadcast));
 app.use('/api/sessions', sessionRoutes(broadcast));
 app.use('/api/exports', exportRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/master', masterRoutes);
 
 // Serve frontend build in produzione
 const distPath = path.join(__dirname, '..', 'sagra-manager', 'dist');

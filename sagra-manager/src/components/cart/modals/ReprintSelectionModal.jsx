@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Printer } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL;
-
+import { API_URL } from '../../../config/api';
 // ─── Modale Ristampa ────────────────────────────────────────────
 const ReprintSelectionModal = ({ onClose }) => {
     const [recentOrders, setRecentOrders] = useState([]);

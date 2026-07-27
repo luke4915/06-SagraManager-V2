@@ -1,8 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { ChefHat, Wifi, WifiOff } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL;
-const WS_URL = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:3000`;
+import { API_URL, WS_URL } from '../config/api';
 
 const mergeOrders = (existing, incoming) => {
     const map = new Map();

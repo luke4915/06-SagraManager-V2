@@ -3,8 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { ShoppingCart, Plus, Minus, X, ChefHat, Trash2, Download, QrCode } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL;
-
+import { API_URL } from '../config/api';
 const ProductCard = ({ product, quantity, onAdd, onRemove }) => (
     <div className="flex items-center justify-between gap-3 p-4 rounded-2xl bg-[var(--bg-card)] border border-[var(--border)]">
         <div className="flex items-center gap-3 flex-1 min-w-0">

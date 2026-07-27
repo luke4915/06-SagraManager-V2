@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { Save } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 
-const API_URL = import.meta.env.VITE_API_URL;
-
+import { API_URL } from '../../config/api';
 const MenuSettings = () => {
     const { showToast } = useToast();
     const [welcomeMessage, setWelcomeMessage] = useState('');

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 
-const API_URL = import.meta.env.VITE_API_URL;
+import { API_URL } from '../config/api';
 const AuthContext = createContext();
 
 // Refresh silenzioso ogni 6h — il token dura 8h quindi c'è sempre margine

@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Edit, Trash2, Search, Plus, CheckSquare, Square, Eye, EyeOff } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL;
-
+import { API_URL } from '../../config/api';
 const ProductConfig = ({ products, setProducts }) => {
   const [editingProduct, setEditingProduct] = useState(null);
   const [formData, setFormData] = useState({ name: '', price: 0, category: '', color: '#3b82f6', visible: true });

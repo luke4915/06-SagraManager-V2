@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
 import { tenantScope, lookupUserForLogin, withTenantClient } from '../middleware/tenantScope.js';
+import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
 import logger from '../logger.js';
 
 const router = express.Router();
@@ -22,12 +23,14 @@ const setCookie = (res, token) => res.cookie('token', token, {
 });
 
 // LOGIN
-router.post('/login', async (req, res) => {
+router.post('/login', resolveTenantFromHost, async (req, res) => {
   const { username, password } = req.body;
   if (!username?.trim()) return res.status(400).json({ error: 'Username richiesto' });
   try {
     const user = await lookupUserForLogin(username.trim());
     if (!user) return res.status(401).json({ error: 'Utente non trovato' });
+    if (user.tenant_id !== req.tenantId)
+      return res.status(401).json({ error: 'Utente non trovato' });
     const needsPassword = !user.password_hash?.trim();
     if (!needsPassword && !await bcrypt.compare(password || '', user.password_hash))
       return res.status(401).json({ error: 'Password errata' });

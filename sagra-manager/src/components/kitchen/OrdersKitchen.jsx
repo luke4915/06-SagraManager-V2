@@ -4,8 +4,7 @@ import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 
-const API_URL = import.meta.env.VITE_API_URL;
-const WS_URL = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:3000`;
+import { API_URL, WS_URL } from '../../config/api';
 
 const mergeOrders = (existing, incoming) => {
   const map = new Map();

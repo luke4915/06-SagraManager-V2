@@ -2,8 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { Download, X, CheckSquare, Square } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL;
-
+import { API_URL } from '../../config/api';
 const tooltipStyle = {
   backgroundColor: 'var(--bg-card)',
   border: '1px solid var(--border)',
