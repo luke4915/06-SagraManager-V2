@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { pool } from '../db.js';
 import { authenticate, DISCOUNT_ROLES } from '../middleware/authenticate.js';
 import { tenantScope, withTenantClient } from '../middleware/tenantScope.js';
+import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
 import { printOrderBatch } from '../utils/receiptTemplates.js';
 import { computeEffectivePrice, sanitizeAdjustment } from '../utils/pricing.js';
 import logger from '../logger.js';
@@ -378,15 +379,10 @@ export default function (broadcast) {
   // migrati da Windows). Prima del multi-tenant vero va decisa un'identificazione
   // reale (slug nell'URL? token pubblico per-tenant?) e sostituita qui sotto.
   let defaultTenantIdCache = null;
-  router.get('/kds', async (req, res) => {
+  // GET /orders/kds — tenant risolto dal sottodominio
+  router.get('/kds', resolveTenantFromHost, async (req, res) => {
     try {
-      if (defaultTenantIdCache === null) {
-        const { rows } = await pool.query("SELECT id FROM tenants WHERE slug = 'default'");
-        defaultTenantIdCache = rows[0]?.id ?? null;
-      }
-      if (defaultTenantIdCache === null) return res.json([]);
-
-      const data = await withTenantClient(defaultTenantIdCache, async (db) => {
+      const data = await withTenantClient(req.tenantId, async (db) => {
         const { rows: sessions } = await db.query(
           'SELECT start_time FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
         );
@@ -397,7 +393,6 @@ export default function (broadcast) {
         );
         return rows.map(o => ({ ...o, items: safeParseJSON(o.items).map(i => ({ ...i, note: i.note || '' })) }));
       });
-
       res.json(data);
     } catch (err) {
       logger.error({ err }, 'Errore GET /api/orders/kds');

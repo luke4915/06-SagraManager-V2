@@ -2,6 +2,7 @@ import express from 'express';
 import { pool } from '../db.js';
 import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
 import { tenantScope, withTenantClient } from '../middleware/tenantScope.js';
+import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
 import logger from '../logger.js';
 
 const router = express.Router();
@@ -11,23 +12,15 @@ const LOW_STOCK_THRESHOLD = 10;
 // GET /api/products/menu — pubblico
 // ⚠️ TODO multi-tenant: stesso problema del KDS (vedi orders.js) — stop-gap
 // sul tenant "default" finché non c'è un'identificazione reale (slug in URL?).
-let defaultTenantIdCache = null;
-router.get('/menu', async (req, res) => {
+router.get('/menu', resolveTenantFromHost, async (req, res) => {
   try {
-    if (defaultTenantIdCache === null) {
-      const { rows } = await pool.query("SELECT id FROM tenants WHERE slug = 'default'");
-      defaultTenantIdCache = rows[0]?.id ?? null;
-    }
-    if (defaultTenantIdCache === null) return res.json({ sessionName: null, products: [] });
-
-    const data = await withTenantClient(defaultTenantIdCache, async (db) => {
+    const data = await withTenantClient(req.tenantId, async (db) => {
       const [{ rows: products }, { rows: sessions }] = await Promise.all([
         db.query('SELECT id, name, price, category, color FROM products WHERE visible = true ORDER BY category, name'),
         db.query('SELECT name FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1')
       ]);
       return { sessionName: sessions[0]?.name || null, products };
     });
-
     res.json(data);
   } catch (err) {
     logger.error({ err }, 'Errore GET /api/products/menu');

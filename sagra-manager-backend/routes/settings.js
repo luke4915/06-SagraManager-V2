@@ -2,26 +2,19 @@ import express from 'express';
 import { pool } from '../db.js';
 import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
 import { tenantScope, withTenantClient } from '../middleware/tenantScope.js';
+import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
 import logger from '../logger.js';
 
 const router = express.Router();
 
 // GET /api/settings — pubblico per welcome_message
 // ⚠️ TODO multi-tenant: stesso stop-gap di /kds e /products/menu — vedi orders.js
-let defaultTenantIdCache = null;
-router.get('/', async (req, res) => {
+router.get('/', resolveTenantFromHost, async (req, res) => {
     try {
-        if (defaultTenantIdCache === null) {
-            const { rows } = await pool.query("SELECT id FROM tenants WHERE slug = 'default'");
-            defaultTenantIdCache = rows[0]?.id ?? null;
-        }
-        if (defaultTenantIdCache === null) return res.json({});
-
-        const settings = await withTenantClient(defaultTenantIdCache, async (db) => {
+        const settings = await withTenantClient(req.tenantId, async (db) => {
             const { rows } = await db.query('SELECT key, value FROM settings');
             return Object.fromEntries(rows.map(r => [r.key, r.value]));
         });
-
         res.json(settings);
     } catch (err) {
         logger.error({ err }, 'Errore GET /api/settings');
