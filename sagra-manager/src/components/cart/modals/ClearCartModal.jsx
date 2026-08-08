@@ -8,8 +8,8 @@ const ClearCartModal = ({ onConfirm, onClose }) => (
             <p className="font-black text-[var(--text-main)] mb-1">Svuotare il carrello?</p>
             <p className="text-xs text-[var(--text-muted)] mb-6">Tutti gli articoli verranno rimossi.</p>
             <div className="flex gap-3">
-                <button onClick={onClose} className="flex-1 h-10 rounded-xl border border-[var(--border)] text-[var(--text-main)] font-black text-xs uppercase tracking-widest hover:bg-[var(--bg-card-2)] transition-all">Annulla</button>
-                <button onClick={() => { onConfirm(); onClose(); }} className="flex-1 h-10 rounded-xl bg-red-500 hover:bg-red-600 text-white font-black text-xs uppercase tracking-widest transition-all">Svuota</button>
+                <button onClick={onClose} className="flex-1 h-10 rounded-xl border border-[var(--border)] text-[var(--text-main)] cursor-pointer font-black text-xs uppercase tracking-widest hover:bg-[var(--bg-card-2)] transition-all">Annulla</button>
+                <button onClick={() => { onConfirm(); onClose(); }} className="flex-1 h-10 rounded-xl bg-red-500 hover:bg-red-600 cursor-pointer text-white font-black text-xs uppercase tracking-widest transition-all">Svuota</button>
             </div>
         </div>
     </div>

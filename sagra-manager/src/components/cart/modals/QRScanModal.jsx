@@ -140,7 +140,6 @@ const QRScanModal = ({ currentCart, onMerge, onReplace, onClose }) => {
                         <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-0.5">Importa ordine</p>
                         <h3 className="font-black text-sm uppercase tracking-tight text-[var(--text-main)]">Scansiona QR cliente</h3>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"><X size={15} /></button>
                 </div>
 
                 <div className="p-5 space-y-4">
@@ -158,7 +157,7 @@ const QRScanModal = ({ currentCart, onMerge, onReplace, onClose }) => {
                             {scannerError && <p className="text-red-500 text-xs font-bold text-center bg-red-500/10 p-2 rounded-lg border border-red-500/20 w-full">{scannerError}</p>}
 
                             <button onClick={onClose}
-                                className="w-full py-2.5 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-red-500 hover:text-white">
+                                className="w-full py-2.5 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl cursor-pointer font-black text-xs uppercase tracking-widest transition-all hover:bg-red-500 hover:text-white">
                                 Annulla Scansione
                             </button>
                         </div>

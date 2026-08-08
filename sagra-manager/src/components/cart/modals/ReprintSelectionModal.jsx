@@ -39,7 +39,7 @@ const ReprintSelectionModal = ({ onClose }) => {
                         <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-0.5">Ristampa Periferica</p>
                         <h3 className="font-black text-sm uppercase tracking-tight text-[var(--text-main)]">Seleziona scontrino</h3>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"><X size={15} /></button>
+                    <button onClick={onClose} className="p-2 rounded-xl bg-[var(--bg-card-2)] cursor-pointer border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:border-[var(--border-main)] transition-colors"><X size={15} /></button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar">
                     {loading && <p className="text-xs text-center py-4 text-[var(--text-muted)]">Caricamento...</p>}
@@ -57,7 +57,7 @@ const ReprintSelectionModal = ({ onClose }) => {
                             <div className="flex items-center gap-3 shrink-0">
                                 <span className="font-black text-xs text-[var(--accent)] tabular-nums">{Number(order.total).toFixed(2)} €</span>
                                 <button disabled={reprintingId !== null} onClick={() => handleReprint(order.id)}
-                                    className="p-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-white transition-colors">
+                                    className="p-2 rounded-lg bg-[var(--accent)] border border-[var(--border-accent)] cursor-pointer hover:bg-[var(--accent-hover)] disabled:opacity-40 text-white transition-colors">
                                     <Printer size={14} />
                                 </button>
                             </div>

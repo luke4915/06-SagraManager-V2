@@ -27,7 +27,6 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange,
                 {/* Header Modale */}
                 <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-[var(--border)]">
                     <div className="flex-1 min-w-0 pr-3">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-0.5">Articolo selezionato</p>
                         <h3 className="font-black text-base uppercase tracking-tight text-[var(--text-main)] leading-tight">{item.name}</h3>
                         {item.type === 'sale' ? (
                             <p className="text-[var(--accent)] font-black text-sm tabular-nums mt-0.5">{(item.price * item.quantity).toFixed(2)} €</p>
@@ -38,15 +37,15 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange,
                             </div>
                         )}
                     </div>
-                    <button onClick={handleClose} className="p-2 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors shrink-0"><X size={15} /></button>
+                    <button onClick={handleClose} className="p-2 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--text-accent)] cursor-pointer transition-colors shrink-0"><X size={15} /></button>
                 </div>
 
                 {/* Gestione Quantità */}
                 <div className="px-5 py-4 border-b border-[var(--border)]">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-3">Quantità</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-3">Quantità</p>
                     <div className="flex items-center justify-between gap-3">
                         {/* Tasto MINUS */}
-                        <button onClick={() => onRemove(item)} className="flex-1 py-3 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] flex justify-center text-[var(--text-main)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all active:scale-95">
+                        <button onClick={() => onRemove(item)} className="flex-1 py-3 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] flex justify-center text-[var(--text-main)] hover:border-[var(--accent)] hover:text-[var(--accent)] cursor-pointer transition-all active:scale-95">
                             <Minus size={16} />
                         </button>
 
@@ -58,7 +57,7 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange,
                             disabled={isMaxStockReached}
                             className={`flex-1 py-3 rounded-xl border flex justify-center transition-all ${isMaxStockReached
                                 ? 'bg-gray-500/10 border-gray-500/20 text-gray-500 cursor-not-allowed opacity-50'
-                                : 'bg-[var(--bg-card-2)] border-[var(--border)] text-[var(--text-main)] hover:border-[var(--accent)] hover:text-[var(--accent)] active:scale-95'
+                                : 'bg-[var(--bg-card-2)] border-[var(--border)] text-[var(--text-main)] hover:border-[var(--accent)] hover:text-[var(--accent)] cursor-pointer active:scale-95'
                                 }`}
                         >
                             <Plus size={16} />
@@ -77,19 +76,19 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange,
                     <div className="px-5 py-4 border-b border-[var(--border)]">
                         <div className="flex items-center gap-2 mb-3">
                             <Percent size={11} className="text-[var(--text-muted)]" />
-                            <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)]">Sconto su questo prodotto</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Sconto su questo prodotto</p>
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                             <button onClick={() => onTypeChange(item, 'sale')}
-                                className={`py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all ${item.type === 'sale' ? 'bg-[var(--accent)] border-[var(--accent)] text-white' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)]/50'}`}>
+                                className={`py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all ${item.type === 'sale' ? 'bg-[var(--accent)] border-[var(--accent)] text-white' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)]/50'}`}>
                                 Normale
                             </button>
                             <button onClick={() => onTypeChange(item, 'discount', discountMode, discountValue || 10)}
-                                className={`py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all ${item.type === 'discount' ? 'bg-orange-500 border-orange-500 text-white' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-orange-500/50'}`}>
+                                className={`py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all ${item.type === 'discount' ? 'bg-orange-500 border-orange-500 text-white' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-orange-500/50'}`}>
                                 Sconto
                             </button>
                             <button onClick={() => onTypeChange(item, 'gift')}
-                                className={`py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 ${item.type === 'gift' ? 'bg-purple-500 border-purple-500 text-white' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-purple-500/50'}`}>
+                                className={`py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all flex items-center justify-center gap-1 ${item.type === 'gift' ? 'bg-purple-500 border-purple-500 text-white' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-purple-500/50'}`}>
                                 <Gift size={11} /> Omaggio
                             </button>
                         </div>
@@ -98,9 +97,9 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange,
                             <div className="flex items-center gap-2 mt-3">
                                 <div className="flex rounded-xl border border-[var(--border)] bg-[var(--bg-card-2)] p-0.5 shrink-0">
                                     <button onClick={() => onTypeChange(item, 'discount', 'percent', discountValue)}
-                                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${discountMode === 'percent' ? 'bg-orange-500 text-white' : 'text-[var(--text-muted)]'}`}>%</button>
+                                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer transition-all ${discountMode === 'percent' ? 'bg-orange-500 text-white' : 'text-[var(--text-muted)]'}`}>%</button>
                                     <button onClick={() => onTypeChange(item, 'discount', 'amount', discountValue)}
-                                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${discountMode === 'amount' ? 'bg-orange-500 text-white' : 'text-[var(--text-muted)]'}`}>€</button>
+                                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer transition-all ${discountMode === 'amount' ? 'bg-orange-500 text-white' : 'text-[var(--text-muted)]'}`}>€</button>
                                 </div>
                                 <input
                                     type="number"
@@ -120,7 +119,7 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange,
                 <div className="px-5 py-4 border-b border-[var(--border)]">
                     <div className="flex items-center gap-2 mb-2">
                         <MessageSquare size={11} className="text-[var(--text-muted)]" />
-                        <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)]">Note cucina</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Note cucina</p>
                     </div>
                     <textarea rows={2} placeholder="Es: senza cipolla, ben cotto..."
                         value={note} onChange={e => setNote(e.target.value.toUpperCase())}
@@ -130,12 +129,12 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange,
                 {/* Bottoni Affiancati (Rimuovi e Conferma) */}
                 <div className="px-5 py-4 flex gap-3">
                     <button onClick={() => { onDelete(item); onClose(); }}
-                        className="flex-1 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 font-black text-xs uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2">
+                        className="flex-1 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 font-black text-xs uppercase tracking-widest hover:bg-red-500 cursor-pointer hover:text-white transition-all flex items-center justify-center gap-2 shadow-sm">
                         <Trash2 size={13} /> Rimuovi
                     </button>
 
                     <button onClick={handleClose}
-                        className="flex-1 py-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm">
+                        className="flex-1 py-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] cursor-pointer text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm">
                         <Check size={14} /> Conferma
                     </button>
                 </div>
