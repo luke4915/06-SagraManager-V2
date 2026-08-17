@@ -39,7 +39,8 @@ const Login = ({ onLogin }) => {
         username: data.username,
         role: data.role,
         needsPassword: data.needsPassword,
-        theme: data.theme
+        theme: data.theme,
+        tenantName: data.tenantName
       });
 
     } catch (err) {

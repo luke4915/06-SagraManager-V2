@@ -121,7 +121,12 @@ app.use('/api/master', masterRoutes);
 const distPath = path.join(__dirname, '..', 'sagra-manager', 'dist');
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(distPath));
-  app.get('*', (_req, res) => res.sendFile(path.join(distPath, 'index.html')));
+  app.use((req, res, next) => {
+  if (req.method === 'GET' && !req.path.startsWith('/api')) {
+    return res.sendFile(path.join(distPath, 'index.html'));
+  }
+  next();
+});
 }
 
 // Handler errori globale

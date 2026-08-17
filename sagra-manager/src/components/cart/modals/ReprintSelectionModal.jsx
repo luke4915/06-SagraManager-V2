@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Printer } from 'lucide-react';
-
 import { API_URL } from '../../../config/api';
+
 // ─── Modale Ristampa ────────────────────────────────────────────
 const ReprintSelectionModal = ({ onClose }) => {
     const [recentOrders, setRecentOrders] = useState([]);
@@ -57,7 +57,7 @@ const ReprintSelectionModal = ({ onClose }) => {
                             <div className="flex items-center gap-3 shrink-0">
                                 <span className="font-black text-xs text-[var(--accent)] tabular-nums">{Number(order.total).toFixed(2)} €</span>
                                 <button disabled={reprintingId !== null} onClick={() => handleReprint(order.id)}
-                                    className="p-2 rounded-lg bg-[var(--accent)] border border-[var(--border-accent)] cursor-pointer hover:bg-[var(--accent-hover)] disabled:opacity-40 text-white transition-colors">
+                                    className="p-2 rounded-lg bg-[var(--accent)] border-[var(--border-accent)] cursor-pointer hover:bg-[var(--accent-hover)] disabled:opacity-40 text-white transition-colors">
                                     <Printer size={14} />
                                 </button>
                             </div>

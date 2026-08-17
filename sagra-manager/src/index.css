@@ -22,6 +22,8 @@
   --text-muted: #9ca3af;
   --border: #1f2937;
   --accent: #3b82f6;
+  --error: #f63b3b;
+  --error-hover: #f63b3bab;
   --accent-hover: #2563eb;
   --accent-shadow: rgba(59, 130, 246, 0.2);
 }

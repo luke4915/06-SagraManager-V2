@@ -11,7 +11,7 @@ const router = express.Router();
 
 // 🔴 MODIFICA: Includiamo anche il 'theme' nel token JWT per passarlo al frontend
 const signToken = (user) => jwt.sign(
-  { id: user.id, username: user.username, role: user.role, theme: user.theme || 'dark', tenantId: user.tenant_id },
+  { id: user.id, username: user.username, role: user.role, theme: user.theme || 'dark', tenantId: user.tenant_id, tenantName: user.tenant_name },
   process.env.JWT_SECRET,
   { expiresIn: '8h' }
 );
@@ -38,8 +38,9 @@ router.post('/login', resolveTenantFromHost, async (req, res) => {
     if (user.tenant_id !== req.tenantId)
       return res.status(401).json({ error: 'Utente non trovato' }); // stesso messaggio: non riveliamo l'esistenza dell'utente su un altro tenant
 
-    const { rows: tenantRows } = await pool.query('SELECT expires_at, active FROM tenants WHERE id = $1', [user.tenant_id]);
+    const { rows: tenantRows } = await pool.query('SELECT expires_at, active, name FROM tenants WHERE id = $1', [user.tenant_id]);
     const tenant = tenantRows[0];
+
     if (!tenant?.active) {
       return res.status(403).json({ error: 'Account disattivato. Contatta l\'assistenza.', code: 'TENANT_INACTIVE' });
     }
@@ -47,14 +48,15 @@ router.post('/login', resolveTenantFromHost, async (req, res) => {
       return res.status(402).json({ error: "Licenza scaduta. Contatta l'assistenza per rinnovarla.", code: 'LICENSE_EXPIRED' });
     }
 
+    user.tenant_name = tenant.name;
     const needsPassword = !user.password_hash?.trim();
     if (!needsPassword && !await bcrypt.compare(password || '', user.password_hash))
       return res.status(401).json({ error: 'Password errata' });
 
     setCookie(res, signToken(user));
 
-    res.json({ id: user.id, username: user.username, role: user.role, needsPassword, theme: user.theme || 'dark' });
-  } catch (err) {
+    res.json({ id: user.id, username: user.username, role: user.role, needsPassword, theme: user.theme || 'dark', tenantName: user.tenant_name });
+    } catch (err) {
     logger.error({ err }, 'Errore server')
     res.status(500).json({ error: 'Errore server' });
   }
@@ -79,7 +81,7 @@ router.post('/refresh', async (req, res) => {
       return res.status(401).json({ error: 'Token non valido' });
     }
 
-    // 3. Controllo di sicurezza sul DB: l'utente esiste ancora ed è attivo?
+  // 3. Controllo di sicurezza sul DB: l'utente esiste ancora ed è attivo?
     const user = await withTenantClient(decoded.tenantId, async (db) => {
       const { rows } = await db.query('SELECT * FROM users WHERE id = $1', [decoded.id]);
       return rows[0] || null;
@@ -87,6 +89,9 @@ router.post('/refresh', async (req, res) => {
     if (!user) {
       return res.status(401).json({ error: 'Utente non trovato o disabilitato' });
     }
+
+    const { rows: tRows } = await pool.query('SELECT name FROM tenants WHERE id = $1', [decoded.tenantId]);
+    user.tenant_name = tRows[0]?.name;
 
     // 4. Generiamo il nuovo token e sovrascriviamo il vecchio cookie
     const newToken = signToken(user);
@@ -154,10 +159,11 @@ router.post('/admin/createUser', authenticate, authorizeAdmin, tenantScope, asyn
 // 🔴 MODIFICA: Restituiamo req.user assicurandoci che contenga il flag theme atteso dal frontend
 router.get('/me', authenticate, (req, res) => {
   res.json({
-    id: req.user.id,
-    username: req.user.username,
-    role: req.user.role,
-    theme: req.user.theme || 'dark'
+  id: req.user.id,
+  username: req.user.username,
+  role: req.user.role,
+  theme: req.user.theme || 'dark',
+  tenantName: req.user.tenantName
   });
 });
 

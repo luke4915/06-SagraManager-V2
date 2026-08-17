@@ -172,9 +172,9 @@ const CartDesktopView = ({
 
                 <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                        <span className="text-xl font-black text-[var(--text-main)] uppercase tracking-widest">Totale</span>
-                        {isAllGift && <span className="text-[9px] font-black uppercase tracking-widest bg-purple-500/10 text-purple-500 border border-purple-500/30 px-2 py-0.5 rounded-full">Omaggio</span>}
-                        {!isAllGift && hasAnyDiscount && <span className="text-[9px] font-black uppercase tracking-widest bg-orange-500/10 text-orange-500 border border-orange-500/30 px-2 py-0.5 rounded-full">Scontato</span>}
+                        <span className="text-xl font-black text-[var(--text-main)] uppercase">Totale</span>
+                        {isAllGift && <span className="text-[9px] font-black uppercase bg-purple-500/10 text-purple-500 border border-purple-500/30 px-2 py-0.5 rounded-full">Omaggio</span>}
+                        {!isAllGift && hasAnyDiscount && <span className="text-[9px] font-black uppercase bg-orange-500/10 text-orange-500 border border-orange-500/30 px-2 py-0.5 rounded-full">Scontato</span>}
                     </div>
                     {hasAnyDiscount ? (
                         <div className="flex items-baseline gap-2">
@@ -191,7 +191,7 @@ const CartDesktopView = ({
                     <button
                         onClick={handleSendOrder}
                         disabled={cart.length === 0 || !sessionActive || !wsConnected}
-                        className="flex-1 h-11 bg-[var(--accent)] hover:bg-[var(--accent-hover)] cursor-pointer disabled:opacity-30 disabled:text-[var(--text-muted)] disabled:hover:cursor-not-allowed text-white rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider active:scale-[0.99] transition-all flex items-center justify-center gap-1.5 px-2"
+                        className="flex-1 h-11 px-2 bg-[var(--accent)] hover:bg-[var(--accent-hover)] cursor-pointer disabled:opacity-30 disabled:text-[var(--text-muted)] disabled:hover:cursor-not-allowed text-white rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider active:scale-[0.99] transition-all flex items-center justify-center gap-1.5 px-2"
                     >
                         <Send size={16} />
                         <span>Invia Ordine</span>
@@ -201,7 +201,7 @@ const CartDesktopView = ({
                     <button
                         onClick={() => cart.length > 0 && setIsClearModalOpen(true)}
                         disabled={cart.length === 0}
-                        className="flex-1 h-11 px-2 bg-red-600/10 border border-red-300 dark:border-red-900/40 text-red-500 hover:bg-red-500 hover:text-white cursor-pointer disabled:hover:cursor-not-allowed rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider transition-all disabled:opacity-30 flex items-center justify-center gap-1.5"
+                        className="flex-1 h-11 px-2 bg-[var(--error)] hover:bg-[var(--error-hover)] cursor-pointer disabled:opacity-30 disabled:text-[var(--text-muted)] disabld:hover:cursor-not-allowed text-white dark:border-red-900/40 text-red-500 hover:text-white cursor-pointer rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider transition-all disabled:opacity-30 flex items-center justify-center gap-1.5"
                     >
                         <Trash size={16} />
                         <span>Svuota</span>
