@@ -15,6 +15,6 @@ export default defineConfig({
     host: true,
     port: 5173,
     strictPort: true,
-    allowedHosts: ['default.standmanager.local', 'test.standmanager.local', 'mariasstrocchio.standmanager.local']
+    allowedHosts: ['*.standmanager.local', 'mariasstrocchio.standmanager.local']
   }
 })

@@ -74,8 +74,8 @@ app.use('/api/master/login', loginLimiter);
 app.use('/api/orders', ordersLimiter);
 
 // 🔴 MODIFICA: Caricamento sicuro dei certificati mkcert da variabili d'ambiente con fallback sul tuo file attuale
-const keyPath = process.env.HTTPS_KEY_PATH || path.resolve(__dirname, './192.168.1.99+2-key.pem');
-const certPath = process.env.HTTPS_CERT_PATH || path.resolve(__dirname, './192.168.1.99+2.pem');
+const keyPath = process.env.HTTPS_KEY_PATH || path.resolve(__dirname, '_wildcard.standmanager.local+4-key.pem');
+const certPath = process.env.HTTPS_CERT_PATH || path.resolve(__dirname, '_wildcard.standmanager.local+4.pem');
 
 let httpsOptions;
 try {
@@ -122,11 +122,11 @@ const distPath = path.join(__dirname, '..', 'sagra-manager', 'dist');
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(distPath));
   app.use((req, res, next) => {
-  if (req.method === 'GET' && !req.path.startsWith('/api')) {
-    return res.sendFile(path.join(distPath, 'index.html'));
-  }
-  next();
-});
+    if (req.method === 'GET' && !req.path.startsWith('/api')) {
+      return res.sendFile(path.join(distPath, 'index.html'));
+    }
+    next();
+  });
 }
 
 // Handler errori globale

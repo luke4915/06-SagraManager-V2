@@ -1,7 +1,13 @@
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { Pool } from 'pg';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Forza il puntamento alla radice del progetto (dove si trova il file .env)
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 export const pool = new Pool({
   user: process.env.PG_USER,

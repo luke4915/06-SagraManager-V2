@@ -18,17 +18,22 @@ const PrintProfiles = () => {
   const [modal, setModal] = useState(null); // null | 'new' | { id, name, label }
   const [confirmDelete, setConfirmDelete] = useState(null);
 
-  // ─── Drag & drop via Pointer Events ─────────────────────────────
-  // A differenza dell'HTML5 Drag&Drop (draggable/onDragStart/onDrop),
-  // i Pointer Events funzionano in modo identico con mouse, touch e penna:
-  // niente comportamento inconsistente su tablet/smartphone.
+  // ─── Drag & Drop ultra-fluido senza rimbalzi ───
   const itemRefs = useRef(new Map());
-  const dragInfo = useRef(null); // { id, pointerId, lastY }
+  const dragInfo = useRef(null);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
   const [draggingId, setDraggingId] = useState(null);
+  const [isDropping, setIsDropping] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
+  const [targetIndex, setTargetIndex] = useState(null);
+
+  const targetIndexRef = useRef(null);
+  const setTargetIndexSync = (idx) => {
+    targetIndexRef.current = idx;
+    setTargetIndex(idx);
+  };
 
   useEffect(() => { fetchAll(); }, []);
 
@@ -84,60 +89,120 @@ const PrintProfiles = () => {
       if (!res.ok) throw new Error('Errore nel salvataggio del nuovo ordine');
     } catch (err) {
       setError(err.message);
-      setSettings(originalSettings); // rollback in caso di errore di rete
+      setSettings(originalSettings); // rollback
     }
   }, []);
 
-  // ─── Pointer handlers (maniglia = unico punto di innesco) ───────
+  // ─── Handlers Drag & Drop ──────────────────────────────────────────
   const handlePointerDown = (id) => (e) => {
-    if (!isAdmin) return;
+    if (!isAdmin || isDropping) return;
     e.preventDefault();
+    e.stopPropagation();
+
     const handle = e.currentTarget;
-    handle.setPointerCapture(e.pointerId);
-    dragInfo.current = { id, pointerId: e.pointerId, lastY: e.clientY };
+    if (handle.setPointerCapture) {
+      try { handle.setPointerCapture(e.pointerId); } catch (_) { }
+    }
+
+    const currentIndex = settingsRef.current.findIndex(s => s.id === id);
+    if (currentIndex === -1) return;
+
+    const rects = settingsRef.current.map(s => {
+      const el = itemRefs.current.get(s.id);
+      return el ? el.getBoundingClientRect() : null;
+    });
+
+    const centers = rects.map(r => r ? r.top + r.height / 2 : 0);
+
+    dragInfo.current = {
+      id,
+      pointerId: e.pointerId,
+      startY: e.clientY,
+      draggedIndex: currentIndex,
+      centers,
+    };
+
     setDraggingId(id);
+    setIsDropping(false);
     setDragOffset(0);
+    setTargetIndexSync(currentIndex);
   };
 
   const handlePointerMove = (e) => {
-    if (!dragInfo.current || dragInfo.current.id == null) return;
-    const { id, lastY } = dragInfo.current;
-    const deltaY = e.clientY - lastY;
-    setDragOffset(prev => prev + deltaY);
-    dragInfo.current.lastY = e.clientY;
+    if (!dragInfo.current || dragInfo.current.id == null || isDropping) return;
+    const { startY, draggedIndex, centers } = dragInfo.current;
+    const deltaY = e.clientY - startY;
 
-    const current = settingsRef.current;
-    const currentIndex = current.findIndex(s => s.id === id);
-    const draggedEl = itemRefs.current.get(id);
-    if (currentIndex === -1 || !draggedEl) return;
+    const currentCenter = centers[draggedIndex] + deltaY;
 
-    let targetIndex = currentIndex;
-    current.forEach((s, idx) => {
-      if (s.id === id) return;
-      const el = itemRefs.current.get(s.id);
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const center = rect.top + rect.height / 2;
-      if (idx < currentIndex && e.clientY < center) targetIndex = Math.min(targetIndex, idx);
-      if (idx > currentIndex && e.clientY > center) targetIndex = Math.max(targetIndex, idx);
+    let closestIdx = draggedIndex;
+    let minDistance = Infinity;
+
+    centers.forEach((center, idx) => {
+      const dist = Math.abs(currentCenter - center);
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestIdx = idx;
+      }
     });
 
-    if (targetIndex !== currentIndex) {
-      setSettings(prev => {
-        const arr = [...prev];
-        const [moved] = arr.splice(currentIndex, 1);
-        arr.splice(targetIndex, 0, moved);
-        return arr;
-      });
+    setDragOffset(deltaY);
+    if (targetIndexRef.current !== closestIdx) {
+      setTargetIndexSync(closestIdx);
     }
   };
 
-  const handlePointerUp = () => {
-    if (!dragInfo.current) return;
-    dragInfo.current = null;
-    setDraggingId(null);
-    setDragOffset(0);
-    persistOrder(settingsRef.current);
+  const handlePointerUp = (e) => {
+    if (!dragInfo.current || isDropping) return;
+
+    const { pointerId, draggedIndex, centers } = dragInfo.current;
+    if (e && e.currentTarget && e.currentTarget.releasePointerCapture && pointerId != null) {
+      try { e.currentTarget.releasePointerCapture(pointerId); } catch (_) { }
+    }
+
+    const finalTargetIndex = targetIndexRef.current;
+    const currentSettings = settingsRef.current;
+
+    setIsDropping(true);
+
+    if (
+      finalTargetIndex !== null &&
+      finalTargetIndex !== -1 &&
+      centers &&
+      centers[finalTargetIndex] !== undefined &&
+      finalTargetIndex !== draggedIndex
+    ) {
+      // Scivola esattamente al centro della riga target
+      const targetOffset = centers[finalTargetIndex] - centers[draggedIndex];
+      setDragOffset(targetOffset);
+
+      // Al termine dell'animazione (200ms), riordina lo stato SENZA transizioni CSS residue
+      setTimeout(() => {
+        const updated = [...currentSettings];
+        const [moved] = updated.splice(draggedIndex, 1);
+        updated.splice(finalTargetIndex, 0, moved);
+
+        // Reset istantaneo per evitare il rimbalzo
+        dragInfo.current = null;
+        setDraggingId(null);
+        setIsDropping(false);
+        setDragOffset(0);
+        setTargetIndexSync(null);
+
+        setSettings(updated);
+        persistOrder(updated);
+      }, 200);
+    } else {
+      // Ritorna al punto di partenza se non è cambiato l'indice
+      setDragOffset(0);
+      setTimeout(() => {
+        dragInfo.current = null;
+        setDraggingId(null);
+        setIsDropping(false);
+        setDragOffset(0);
+        setTargetIndexSync(null);
+      }, 200);
+    }
   };
 
   const createCopyType = async ({ name, label }) => {
@@ -221,16 +286,41 @@ const PrintProfiles = () => {
         <div className="mt-5 flex flex-col gap-2.5">
           {settings.map((s, index) => {
             const isDragging = draggingId === s.id;
+            const draggedIndex = dragInfo.current?.draggedIndex;
+            const centers = dragInfo.current?.centers;
+
+            let translateY = 0;
+            let transitionStyle = 'none'; // Di default NESSUNA transizione per evitare il rimbalzo al cambio DOM
+
+            if (draggingId != null) {
+              if (isDragging) {
+                translateY = dragOffset;
+                // Transizione solo durante il drop magnetico finale
+                transitionStyle = isDropping
+                  ? 'transform 0.2s cubic-bezier(0.2, 0, 0, 1)'
+                  : 'none';
+              } else if (draggedIndex != null && targetIndex != null && centers) {
+                // Calcolo dello slittamento degli altri elementi
+                if (draggedIndex < targetIndex && index > draggedIndex && index <= targetIndex) {
+                  translateY = centers[index - 1] - centers[index];
+                } else if (draggedIndex > targetIndex && index < draggedIndex && index >= targetIndex) {
+                  translateY = centers[index + 1] - centers[index];
+                }
+                transitionStyle = 'transform 0.2s cubic-bezier(0.2, 0, 0, 1)';
+              }
+            }
+
             return (
               <div
                 key={s.id}
                 ref={el => { if (el) itemRefs.current.set(s.id, el); else itemRefs.current.delete(s.id); }}
-                style={isDragging ? {
-                  transform: `translateY(${dragOffset}px)`,
-                  zIndex: 20,
-                  boxShadow: '0 12px 28px rgba(0,0,0,0.25)',
-                } : undefined}
-                className={`flex flex-col sm:flex-row sm:items-center gap-3 p-3.5 rounded-2xl border transition-colors
+                style={{
+                  transform: translateY ? `translateY(${translateY}px)` : undefined,
+                  transition: transitionStyle,
+                  zIndex: isDragging ? 30 : 1,
+                  boxShadow: isDragging ? '0 12px 28px rgba(0,0,0,0.25)' : undefined,
+                }}
+                className={`flex flex-col sm:flex-row sm:items-center gap-3 p-3.5 rounded-2xl border
                   ${isDragging ? 'border-[var(--accent)] bg-[var(--bg-card)] scale-[1.01]' : 'border-[var(--border)] bg-[var(--bg-card-2)]'}`}
               >
                 {/* Maniglia + posizione + nome */}
@@ -254,10 +344,10 @@ const PrintProfiles = () => {
                     {index + 1}
                   </span>
                   <div className="min-w-0">
-                    <p className="font-black text-xs uppercase tracking-tight text-[var(--text-main)] truncate">
+                    <p className="font-black text-sm uppercase tracking-tight text-[var(--text-main)] truncate">
                       {s.copy_type_label}
                     </p>
-                    <p className="text-[10px] text-[var(--text-muted)] truncate">{s.copy_type_name}</p>
+                    <p className="text-[11px] text-[var(--text-muted)] truncate">{s.copy_type_name}</p>
                   </div>
                 </div>
 
@@ -269,14 +359,14 @@ const PrintProfiles = () => {
                       onClick={() => updateSetting(s.id, { printer_type: 'network', printer_address: '' })}
                       className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${s.printer_type === 'network' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-muted)]'}`}
                     >
-                      <Wifi size={12} /> Rete
+                      <Wifi size={14} /> Rete
                     </button>
                     <button
                       disabled={!isAdmin || saving === s.id}
                       onClick={() => updateSetting(s.id, { printer_type: 'usb', printer_address: '' })}
                       className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${s.printer_type === 'usb' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-muted)]'}`}
                     >
-                      <Usb size={12} /> USB
+                      <Usb size={14} /> USB
                     </button>
                   </div>
 
@@ -288,7 +378,7 @@ const PrintProfiles = () => {
                       disabled={!isAdmin || saving === s.id}
                       onChange={e => setSettings(prev => prev.map(x => x.id === s.id ? { ...x, printer_address: e.target.value } : x))}
                       onBlur={e => updateSetting(s.id, { printer_address: e.target.value })}
-                      className="flex-1 min-w-[150px] px-3 py-1.5 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-xs outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:cursor-not-allowed"
+                      className="flex-1 min-w-[150px] px-3 py-1.5 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:cursor-not-allowed"
                     />
                   ) : (
                     <select
@@ -307,29 +397,34 @@ const PrintProfiles = () => {
 
                 {/* Azioni + toggle */}
                 <div className="flex items-center gap-2 shrink-0 justify-end">
-                  {saving === s.id && <span className="text-[10px] text-[var(--text-muted)]">Salvataggio...</span>}
+                  {/*{saving === s.id && <span className="text-[10px] text-[var(--text-muted)]">Salvataggio...</span>}*/}
                   {isAdmin && (
                     <>
                       <button onClick={() => setModal({ id: s.copy_type_id, name: s.copy_type_name, label: s.copy_type_label })}
                         title="Rinomina"
                         className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent)]/10 transition-colors">
-                        <Pencil size={13} />
+                        <Pencil size={16} />
                       </button>
                       <button onClick={() => setConfirmDelete(s.copy_type_id)}
                         title="Elimina"
                         className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors">
-                        <Trash2 size={13} />
+                        <Trash2 size={16} />
                       </button>
                     </>
                   )}
-                  <label className={`relative inline-flex items-center ${!isAdmin ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
-                    <input type="checkbox" className="sr-only peer"
+                  <label className={`relative inline-flex items-center shrink-0 ${!isAdmin ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
                       checked={s.enabled}
                       disabled={!isAdmin || saving === s.id}
                       onChange={e => updateSetting(s.id, { enabled: e.target.checked })}
                     />
-                    <div className="w-10 h-5.5 bg-gray-200 dark:bg-gray-700 rounded-full peer peer-checked:bg-[var(--accent)] transition"></div>
-                    <div className="absolute left-1 top-1 w-3.5 h-3.5 bg-white rounded-full shadow transform peer-checked:translate-x-4 transition"></div>
+                    {/* Sfondo track con transizione colore dedicata */}
+                    <div className="w-10 h-5.5 bg-gray-200 dark:bg-gray-700 rounded-full peer peer-checked:bg-[var(--accent)] transition-colors duration-200 ease-in-out"></div>
+
+                    {/* Pallina con translate-x-0 base e transizione trasformazione fluida */}
+                    <div className="absolute left-1 top-1 w-3.5 h-3.5 bg-white rounded-full shadow transform translate-x-0 peer-checked:translate-x-[18px] transition-transform duration-200 ease-in-out pointer-events-none"></div>
                   </label>
                 </div>
               </div>
@@ -353,7 +448,7 @@ const PrintProfiles = () => {
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
           <div className="bg-[var(--bg-card)] rounded-2xl shadow-xl p-6 w-full max-w-sm text-center border border-[var(--border)]">
             <p className="text-[var(--text-main)] mb-2 font-bold">Eliminare questo tipo di copia?</p>
-            <p className="text-xs text-[var(--text-muted)] mb-6">Tutte le impostazioni associate verranno perse.</p>
+            <p className="text-sm text-[var(--text-muted)] mb-6">Tutte le impostazioni associate verranno perse.</p>
             <div className="flex justify-center gap-4">
               <button onClick={() => setConfirmDelete(null)}
                 className="px-4 py-2 rounded-xl bg-[var(--bg-card-2)] text-[var(--text-main)] text-sm">Annulla</button>
