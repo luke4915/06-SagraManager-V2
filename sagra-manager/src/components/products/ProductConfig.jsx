@@ -1,7 +1,62 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Edit, Trash2, Search, Plus, CheckSquare, Square, Eye, EyeOff } from 'lucide-react';
 
 import { API_URL } from '../../config/api';
+
+const Combobox = ({ name, value, onChange, options, placeholder }) => {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filtered = options.filter(o => o.toLowerCase().includes((value || '').toLowerCase()));
+  const exactMatch = options.some(o => o.toLowerCase() === (value || '').trim().toLowerCase());
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <input
+        name={name}
+        type="text"
+        autoComplete="off"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        className="w-full p-2.5 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] font-medium text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]"
+      />
+      {open && (filtered.length > 0 || (value?.trim() && !exactMatch)) && (
+        <div className="absolute z-10 mt-1 w-full max-h-48 overflow-y-auto bg-[var(--bg-card)] border border-[var(--border)] rounded-xl shadow-lg no-scrollbar">
+          {filtered.map(o => (
+            <button
+              key={o}
+              type="button"
+              onClick={() => { onChange(o); setOpen(false); }}
+              className="w-full text-left px-3 py-2 text-sm text-[var(--text-main)] hover:bg-[var(--bg-card-2)] transition-colors cursor-pointer"
+            >
+              {o}
+            </button>
+          ))}
+          {value?.trim() && !exactMatch && (
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="w-full text-left px-3 py-2 text-sm text-[var(--accent)] font-bold hover:bg-[var(--bg-card-2)] transition-colors border-t border-[var(--border)] cursor-pointer flex items-center gap-1.5"
+            >
+              <Plus size={14} /> Crea nuovo: "{value}"
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ProductConfig = ({ products, setProducts }) => {
   const [editingProduct, setEditingProduct] = useState(null);
   const [formData, setFormData] = useState({ name: '', price: 0, category: '', color: '#3b82f6', visible: true });
@@ -9,6 +64,9 @@ const ProductConfig = ({ products, setProducts }) => {
   const [popupVisible, setPopupVisible] = useState(false);
   const [filterCategory, setFilterCategory] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Stato per gestione conflitti di categoria (stesso prodotto presente già in un'altra categoria --> WARNING)
+  const [duplicateConflict, setDuplicateConflict] = useState(null);
 
   // Stati per la Selezione Multipla
   const [isBulkMode, setIsBulkMode] = useState(false);
@@ -37,14 +95,17 @@ const ProductConfig = ({ products, setProducts }) => {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : (name === 'price' ? parseFloat(value) || 0 : value)
+    }));
+  };
 
+  // Usato dal Combobox (categoria/nome), che non emette un vero evento input.
+  // Mantiene la stessa automazione colore già presente prima.
+  const setField = (name, value) => {
     setFormData(prev => {
-      const updated = {
-        ...prev,
-        [name]: type === 'checkbox' ? checked : (name === 'price' ? parseFloat(value) || 0 : value)
-      };
-
-      // 🚀 AUTOMAZIONE COLORE: Se stai digitando la categoria, cerca se esiste già quel colore nel menu
+      const updated = { ...prev, [name]: value };
       if (name === 'category' && value.trim() !== '') {
         const existingProductWithSameCat = products.find(
           p => p.category && p.category.toLowerCase() === value.trim().toLowerCase()
@@ -53,7 +114,6 @@ const ProductConfig = ({ products, setProducts }) => {
           updated.color = existingProductWithSameCat.color;
         }
       }
-
       return updated;
     });
   };
@@ -70,17 +130,14 @@ const ProductConfig = ({ products, setProducts }) => {
       });
       if (!res.ok) throw new Error();
 
-      // Aggiorna lo stato globale centralizzato in App.jsx
       setProducts(prev => prev.map(p => p.id === product.id ? { ...p, visible: updatedStatus } : p));
     } catch (err) { console.error("Errore cambio visibilità", err); }
   };
 
-  // Gestione selezione checkbox singola
   const handleSelectProduct = (id) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
   };
 
-  // Esegue l'aggiornamento bulk per la visibilità di più prodotti
   const handleBulkVisibilityChange = async (visibleStatus) => {
     if (selectedIds.length === 0) return;
     try {
@@ -92,17 +149,13 @@ const ProductConfig = ({ products, setProducts }) => {
       });
       if (!res.ok) throw new Error();
 
-      // Aggiorna massivamente lo stato globale in App.jsx per allineare subito il carrello
       setProducts(prev => prev.map(p => selectedIds.includes(p.id) ? { ...p, visible: visibleStatus } : p));
-
       setSelectedIds([]);
       setIsBulkMode(false);
     } catch (err) { console.error(err); }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.name) return;
+  const doSubmit = async () => {
     try {
       const res = await fetch(editingProduct ? `${API_URL}/products/${editingProduct.id}` : `${API_URL}/products`, {
         method: editingProduct ? "PUT" : "POST",
@@ -114,7 +167,6 @@ const ProductConfig = ({ products, setProducts }) => {
 
       const updatedProduct = await res.json();
 
-      // Aggiorna stock separatamente se abilitato
       if (formData.stock_enabled !== undefined) {
         const stockRes = await fetch(`${API_URL}/products/${updatedProduct.id}/stock`, {
           method: 'PATCH',
@@ -143,17 +195,65 @@ const ProductConfig = ({ products, setProducts }) => {
     } catch (err) { console.error(err); }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Eliminare questo prodotto?")) return;
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!formData.name) return;
+
+    const nameNorm = formData.name.trim().toLowerCase();
+    const catNorm = (formData.category || '').trim().toLowerCase();
+
+    const exactDuplicate = products.find(p =>
+      p.name.trim().toLowerCase() === nameNorm &&
+      (p.category || '').trim().toLowerCase() === catNorm &&
+      (!editingProduct || p.id !== editingProduct.id)
+    );
+    if (exactDuplicate) {
+      setDuplicateConflict({ product: exactDuplicate, sameCategory: true });
+      return;
+    }
+
+    const crossCategoryConflict = products.find(p =>
+      p.name.trim().toLowerCase() === nameNorm &&
+      (p.category || '').trim().toLowerCase() !== catNorm &&
+      (!editingProduct || p.id !== editingProduct.id)
+    );
+    if (crossCategoryConflict) {
+      setDuplicateConflict({ product: crossCategoryConflict, sameCategory: false });
+      return;
+    }
+
+    doSubmit();
+  };
+
+  const useExistingCategory = () => {
+    setField('category', duplicateConflict.product.category);
+    setDuplicateConflict(null);
+  };
+
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const confirmDelete = async () => {
     try {
-      const res = await fetch(`${API_URL}/products/${id}`, { method: "DELETE", credentials: "include" });
+      const res = await fetch(`${API_URL}/products/${deleteTarget.id}`, { method: "DELETE", credentials: "include" });
       if (!res.ok) throw new Error();
 
-      setProducts(prev => prev.filter(p => p.id !== id));
+      setProducts(prev => prev.filter(p => p.id !== deleteTarget.id));
+      setDeleteTarget(null);
     } catch (err) { console.error(err); }
   };
 
   const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
+
+  // Restringe i suggerimenti nome alla categoria selezionata, se esiste già;
+  // altrimenti (categoria vuota o non ancora esistente) mostra tutti i prodotti.
+  const productNamesForCategory = (() => {
+    const catNorm = (formData.category || '').trim().toLowerCase();
+    const categoryExists = categories.some(c => c.toLowerCase() === catNorm);
+    const pool = catNorm && categoryExists
+      ? products.filter(p => (p.category || '').trim().toLowerCase() === catNorm)
+      : products;
+    return [...new Set(pool.map(p => p.name).filter(Boolean))];
+  })();
 
   // MODIFICA: Aggiornata la logica di filtraggio per includere il controllo "showOnlyVisible"
   const filteredGroups = categories
@@ -163,7 +263,7 @@ const ProductConfig = ({ products, setProducts }) => {
       items: products.filter(p =>
         p.category === c &&
         (!searchTerm || p.name.toLowerCase().includes(searchTerm.toLowerCase())) &&
-        (!showOnlyVisible || p.visible !== false) // Se il toggle è attivo, esclude i prodotti con visible === false
+        (!showOnlyVisible || p.visible !== false)
       )
     }))
     .filter(g => g.items.length > 0);
@@ -176,13 +276,12 @@ const ProductConfig = ({ products, setProducts }) => {
           <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-1">Gestione prodotti</p>
         </div>
 
-        {/* MODIFICA: Inserito il pulsante/toggle della visibilità accanto allo strumento di selezione multipla */}
         <div className="flex gap-2">
           <button
             onClick={() => setShowOnlyVisible(!showOnlyVisible)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all border ${showOnlyVisible
-              ? 'bg-green-600 border-green-600 text-white'
-              : 'bg-[var(--bg-card)] border-[var(--border)] text-[var(--text-main)] hover:border-gray-400'
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all border cursor-pointer ${showOnlyVisible
+              ? 'bg-green-600 border-green-600 text-white hover:bg-green-700'
+              : 'bg-[var(--bg-card)] border-[var(--border)] text-[var(--text-main)] hover:bg-[var(--bg-card-2)] hover:border-gray-400'
               }`}
           >
             {showOnlyVisible ? <Eye size={14} /> : <EyeOff size={14} />}
@@ -191,12 +290,12 @@ const ProductConfig = ({ products, setProducts }) => {
 
           <button
             onClick={() => { setIsBulkMode(!isBulkMode); setSelectedIds([]); }}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${isBulkMode ? 'bg-blue-600 text-white' : 'bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)]'}`}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all cursor-pointer ${isBulkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)] hover:bg-[var(--bg-card-2)]'}`}
           >
             {isBulkMode ? 'Annulla Selezione' : 'Selezione Multipla'}
           </button>
 
-          <button onClick={openAddForm} className="flex items-center gap-2 px-5 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all">
+          <button onClick={openAddForm} className="flex items-center gap-2 px-5 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all cursor-pointer">
             <Plus size={16} /> Aggiungi
           </button>
         </div>
@@ -276,7 +375,7 @@ const ProductConfig = ({ products, setProducts }) => {
 
                       <div className="flex gap-1 border-l border-[var(--border)] pl-2">
                         <button onClick={() => openEditForm(product)} className="p-2 rounded-xl hover:bg-[var(--bg-card-2)] transition-colors"><Edit size={16} className="text-gray-500" /></button>
-                        <button onClick={() => handleDelete(product.id)} className="p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"><Trash2 size={16} className="text-red-500" /></button>
+                        <button onClick={() => setDeleteTarget(product)} className="p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"><Trash2 size={16} className="text-red-500" /></button>
                       </div>
                     </div>
                   )}
@@ -296,14 +395,34 @@ const ProductConfig = ({ products, setProducts }) => {
             </div>
             <form onSubmit={handleSubmit} className="p-6">
               <div className="grid grid-cols-2 gap-3 mb-3">
-                {[
-                  { name: 'name', placeholder: 'Nome prodotto', type: 'text', maxLength: 40 },
-                  { name: 'price', placeholder: 'Prezzo (es. 8.50)', type: 'number', step: '0.01' },
-                  { name: 'category', placeholder: 'Categoria (es. Pizze)', type: 'text' },
-                ].map(f => (
-                  <input key={f.name} {...f} value={formData[f.name]} onChange={handleInputChange} required={f.name !== 'category'}
-                    className={`p-2.5 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] font-medium text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] ${f.name === 'name' ? 'col-span-2' : ''}`} />
-                ))}
+                <div className="col-span-2">
+                  <Combobox
+                    name="category"
+                    value={formData.category}
+                    onChange={(v) => setField('category', v)}
+                    options={categories}
+                    placeholder="Categoria (es. Pizze)"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Combobox
+                    name="name"
+                    value={formData.name}
+                    onChange={(v) => setField('name', v)}
+                    options={productNamesForCategory}
+                    placeholder="Nome prodotto"
+                  />
+                </div>
+                <input
+                  name="price"
+                  type="number"
+                  step="0.01"
+                  placeholder="Prezzo (es. 8.50)"
+                  value={formData.price}
+                  onChange={handleInputChange}
+                  required
+                  className="p-2.5 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] font-medium text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] col-span-2"
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] space-y-2">
@@ -312,7 +431,6 @@ const ProductConfig = ({ products, setProducts }) => {
                     <input type="color" name="color" value={formData.color} onChange={handleInputChange} className="w-8 h-8 rounded-lg cursor-pointer border-0 bg-transparent" />
                   </div>
 
-                  {/* 🎨 PALETTE AUTOMATICA: Mostra i colori unici già usati nelle altre categorie */}
                   {products.length > 0 && (
                     <div className="pt-1.5 border-t border-[var(--border)]/40">
                       <div className="flex flex-wrap gap-1.5">
@@ -322,7 +440,7 @@ const ProductConfig = ({ products, setProducts }) => {
                             type="button"
                             title={p.category}
                             onClick={() => setFormData(prev => ({ ...prev, color: p.color, category: prev.category || p.category }))}
-                            className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 active:scale-95`}
+                            className="w-9 h-9 rounded-full border-2 transition-transform hover:scale-110 active:scale-95"
                             style={{
                               backgroundColor: p.color,
                               borderColor: formData.color.toLowerCase() === p.color.toLowerCase() ? 'var(--text-main)' : 'transparent'
@@ -382,6 +500,54 @@ const ProductConfig = ({ products, setProducts }) => {
                 {editingProduct ? 'Salva modifiche' : 'Aggiungi prodotto'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {duplicateConflict && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={() => setDuplicateConflict(null)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative w-full max-w-sm bg-[var(--bg-card)] rounded-xl border border-[var(--border)] shadow-2xl p-6" onClick={e => e.stopPropagation()}>
+            <p className="font-black text-[var(--text-main)] mb-2 text-center">Prodotto già esistente</p>
+            {duplicateConflict.sameCategory ? (
+              <p className="text-xs text-[var(--text-muted)] mb-4 text-center">
+                <b>"{duplicateConflict.product.name}"</b> esiste già in <b>"{duplicateConflict.product.category}"</b>.
+                Non puoi creare due prodotti identici nella stessa categoria.
+              </p>
+            ) : (
+              <p className="text-xs text-[var(--text-muted)] mb-4 text-center">
+                <b>"{duplicateConflict.product.name}"</b> esiste già nella categoria <b>"{duplicateConflict.product.category}"</b>.
+                Non puoi creare due prodotti con lo stesso nome in categorie diverse.
+              </p>
+            )}
+            <div className="flex flex-col gap-2">
+              {!duplicateConflict.sameCategory && (
+                <button onClick={useExistingCategory} className="w-full h-10 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-black text-xs uppercase tracking-widest transition-all cursor-pointer">
+                  Usa quella categoria
+                </button>
+              )}
+              <button onClick={() => setDuplicateConflict(null)} className="w-full h-10 rounded-xl border border-[var(--border)] text-[var(--text-main)] font-black text-xs uppercase tracking-widest hover:bg-[var(--bg-card-2)] transition-all cursor-pointer">
+                {duplicateConflict.sameCategory ? 'Ho capito' : 'Annulla'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={() => setDeleteTarget(null)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative w-full max-w-sm bg-[var(--bg-card)] rounded-xl border border-[var(--border)] shadow-2xl p-6" onClick={e => e.stopPropagation()}>
+            <p className="font-black text-[var(--text-main)] mb-2 text-center">Eliminare il prodotto "{deleteTarget.name}"?</p>
+            <p className="text-xs text-[var(--text-muted)] mb-4 text-center">L'azione è irreversibile!</p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteTarget(null)} className="flex-1 h-10 rounded-xl border border-[var(--border)] text-[var(--text-main)] font-black text-xs uppercase tracking-widest hover:bg-[var(--bg-card-2)] transition-all cursor-pointer">
+                Annulla
+              </button>
+              <button onClick={confirmDelete} className="flex-1 h-10 rounded-xl bg-red-500 hover:bg-red-600 text-white font-black text-xs uppercase tracking-widest transition-all cursor-pointer">
+                Elimina
+              </button>
+            </div>
           </div>
         </div>
       )}

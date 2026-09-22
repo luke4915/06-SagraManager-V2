@@ -8,6 +8,7 @@
   --text-main: #0f172a;
   --text-muted: #64748b;
   --border: #cbd5e1;
+  --border-hover: #94a3b8;
   --accent: #2563eb;
   --accent-hover: #1d4ed8;
   --accent-shadow: rgba(37, 99, 235, 0.2);
@@ -21,9 +22,10 @@
   --text-main: #f9fafb;
   --text-muted: #9ca3af;
   --border: #1f2937;
-  --accent: #3b82f6;
+  --border-hover: #4b5563;
   --error: #f63b3b;
   --error-hover: #f63b3bab;
+  --accent: #3b82f6;
   --accent-hover: #2563eb;
   --accent-shadow: rgba(59, 130, 246, 0.2);
 }
@@ -70,4 +72,17 @@ select,
 textarea {
   transition-property: background-color, border-color, color, opacity, transform, box-shadow;
   transition-duration: 150ms;
+}
+
+/* Hover uniforme per ogni bottone bordato dell'app: bordo più chiaro/marcato
+   al passaggio del mouse, coerente in dark e light. Non tocca i bottoni
+   "pieni" (accent, verde, rosso, ecc.) che gestiscono già il proprio hover. */
+button.border,
+button[class*="border-"] {
+  cursor: pointer;
+}
+
+button.border:hover,
+button[class*="border-[var(--border)]"]:hover {
+  border-color: var(--border-hover) !important;
 }
