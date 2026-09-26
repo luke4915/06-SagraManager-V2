@@ -18,7 +18,7 @@ const Sidebar = ({ view, setView, isOpen, toggleSidebar, currentUser, sessionAct
   `}>
 
     {/* Logo */}
-    <div className="w-11 h-11 bg-[var(--accent)] rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-[var(--accent-shadow)] mb-8 shrink-0">
+    <div className="w-11 h-11 bg-[var(--accent)] rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-[var(--accent-shadow)] mb-8 shrink-0 select-none">
       S
     </div>
 
@@ -31,16 +31,16 @@ const Sidebar = ({ view, setView, isOpen, toggleSidebar, currentUser, sessionAct
             key={item.id}
             onClick={() => setView(item.id)}
             className={`
-              w-full flex items-center p-3.5 rounded-2xl transition-all duration-200
+              w-full flex items-center p-3.5 rounded-2xl transition-all duration-200 cursor-pointer
               ${!isOpen ? 'justify-center' : ''}
               ${view === item.id
                 ? 'bg-[var(--accent)] text-white shadow-md shadow-[var(--accent-shadow)]'
                 : 'text-[var(--text-muted)] hover:bg-[var(--bg-card-2)] hover:text-[var(--text-main)] active:scale-95'}
             `}
           >
-            <div className="shrink-0">{item.icon}</div>
+            <div className="shrink-0 pointer-events-none">{item.icon}</div>
             {isOpen && (
-              <span className="ml-3 font-black uppercase text-xs tracking-widest whitespace-nowrap">
+              <span className="ml-3 font-black uppercase text-xs tracking-widest whitespace-nowrap pointer-events-none">
                 {item.label}
               </span>
             )}
@@ -54,16 +54,16 @@ const Sidebar = ({ view, setView, isOpen, toggleSidebar, currentUser, sessionAct
         <button
           onClick={() => setSessionActive(!sessionActive)}
           className={`
-            w-full flex items-center p-3.5 rounded-2xl transition-all duration-200
+            w-full flex items-center p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer
             ${!isOpen ? 'justify-center' : ''}
             ${sessionActive
-              ? 'bg-green-500/10 border-green-500/30 text-green-500'
-              : 'bg-red-500/10 border-red-500/30 text-red-500'}
+              ? 'bg-green-500/10 border-green-500/30 text-green-500 enabled:hover:bg-green-500/20'
+              : 'bg-red-500/10 border-red-500/30 text-red-500 enabled:hover:bg-red-500/20'}
           `}
         >
-          <div className="shrink-0"><Power size={20} /></div>
+          <div className="shrink-0 pointer-events-none"><Power size={20} /></div>
           {isOpen && (
-            <span className="ml-3 font-black uppercase text-xs tracking-widest whitespace-nowrap">
+            <span className="ml-3 font-black uppercase text-xs tracking-widest whitespace-nowrap pointer-events-none">
               {sessionActive ? 'Chiudi Sessione' : 'Apri Sessione'}
             </span>
           )}
@@ -74,9 +74,11 @@ const Sidebar = ({ view, setView, isOpen, toggleSidebar, currentUser, sessionAct
     {/* Toggle — solo desktop */}
     <button
       onClick={toggleSidebar}
-      className="xl:flex hidden mt-2 p-3 text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors shrink-0"
+      className="xl:flex hidden mt-2 p-3 text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors shrink-0 cursor-pointer"
     >
-      {isOpen ? <ChevronLeft size={22} /> : <ChevronRight size={22} />}
+      <div className="pointer-events-none">
+        {isOpen ? <ChevronLeft size={22} /> : <ChevronRight size={22} />}
+      </div>
     </button>
 
   </aside>

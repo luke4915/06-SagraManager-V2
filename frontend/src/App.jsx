@@ -24,6 +24,7 @@ import Login from './pages/LoginPage';
 import MenuPage from './pages/MenuPage';
 import MasterPage from './pages/MasterPage';
 import { getDiscountedTotal } from './utils/pricing';
+import CashCountModal from './components/shared/CashCountModal';
 
 import { API_URL, WS_URL } from './config/api';
 // Ruoli abilitati ad applicare sconti/omaggi (specchio di DISCOUNT_ROLES nel backend)
@@ -61,8 +62,10 @@ const App = () => {
   const [sessionName, setSessionName] = useState('');
   const [showStartSessionModal, setShowStartSessionModal] = useState(false);
   const [showEndSessionModal, setShowEndSessionModal] = useState(false);
+  const [showCashCountModal, setShowCashCountModal] = useState(false);
   const [inputSessionName, setInputSessionName] = useState('');
   const [orderMode, setOrderMode] = useState('simple');
+  const [expectedCash, setExpectedCash] = useState(0);
 
   const audioCtxRef = useRef(null);
   const audioBuffers = useRef({});
@@ -256,9 +259,15 @@ const App = () => {
   };
 
   const handleSessionToggleClick = (targetState) => {
-    const shouldActivate = typeof targetState === 'boolean' ? targetState : !sessionActive;
+  const shouldActivate = typeof targetState === 'boolean' ? targetState : !sessionActive;
     if (shouldActivate) { setInputSessionName(''); setShowStartSessionModal(true); }
-    else setShowEndSessionModal(true);
+    else {
+      fetch(`${API_URL}/sessions/expected-cash`, { credentials: 'include' })
+        .then(res => res.json())
+        .then(data => setExpectedCash(data.expected || 0))
+        .catch(() => setExpectedCash(0));
+      setShowEndSessionModal(true);
+    }
   };
 
   const handleStartSessionSubmit = async (e) => {
@@ -273,9 +282,14 @@ const App = () => {
     } catch (err) { showToast(err.message || 'Impossibile avviare la sessione', 'error'); }
   };
 
-  const handleEndSessionConfirm = async () => {
+  const handleEndSessionConfirm = async (declaredCash) => {
     try {
-      const res = await fetch(`${API_URL}/sessions/end`, { method: 'POST', credentials: 'include' });
+      const res = await fetch(`${API_URL}/sessions/end`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ declaredCash })
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Errore db');
       setSessionActive(false); setSessionName(''); setShowEndSessionModal(false);
@@ -365,7 +379,7 @@ const App = () => {
               <OrdersKitchen />
             ) : (
               <Routes>
-                <Route path="/dashboard" element={<ProductList products={products} addToCart={addToCart} cart={cart} />} />
+                <Route path="/dashboard" element={<ProductList setProducts={setProducts} products={products} addToCart={addToCart} cart={cart} />} />
                 <Route path="/kitchen" element={<OrdersKitchen />} />
                 <Route path="/statistics" element={<Statistics />} />
                 <Route path="/config" element={<ProductConfig products={products} setProducts={setProducts} />} />
@@ -482,11 +496,19 @@ const App = () => {
             <div className="flex gap-4">
               <button onClick={() => setShowEndSessionModal(false)}
                 className="flex-1 py-3 border border-[var(--border)] text-[var(--text-main)] rounded-2xl font-bold hover:bg-gray-500/10 transition-all">ANNULLA</button>
-              <button onClick={handleEndSessionConfirm}
+              <button onClick={() => { setShowEndSessionModal(false); setShowCashCountModal(true); }}
                 className="flex-1 py-3 bg-amber-500 text-white rounded-2xl font-bold hover:bg-amber-600 transition-all">CONFERMA</button>
             </div>
           </div>
         </div>
+      )}
+
+      {showCashCountModal && (
+        <CashCountModal
+          expectedCash={expectedCash}
+          onClose={() => setShowCashCountModal(false)}
+          onConfirm={(declaredCash) => { setShowCashCountModal(false); handleEndSessionConfirm(declaredCash); }}
+        />
       )}
 
       {showProfilePopup && <UserProfile user={user} onClose={() => setShowProfilePopup(false)} />}

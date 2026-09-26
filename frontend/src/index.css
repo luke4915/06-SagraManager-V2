@@ -77,12 +77,13 @@ textarea {
 /* Hover uniforme per ogni bottone bordato dell'app: bordo più chiaro/marcato
    al passaggio del mouse, coerente in dark e light. Non tocca i bottoni
    "pieni" (accent, verde, rosso, ecc.) che gestiscono già il proprio hover. */
-button.border,
-button[class*="border-"] {
+   
+button.border:not(:disabled):not(.product-card),
+button[class*="border-"]:not([class*="border-l-"]):not(:disabled):not(.product-card) {
   cursor: pointer;
 }
 
-button.border:hover,
-button[class*="border-[var(--border)]"]:hover {
+button.border:not(:disabled):not(.product-card):hover,
+button[class*="border-[var(--border)]"]:not([class*="border-l-"]):not(:disabled):not(.product-card):hover {
   border-color: var(--border-hover) !important;
 }

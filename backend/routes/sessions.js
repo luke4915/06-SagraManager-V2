@@ -31,6 +31,25 @@ export default function (broadcast) {
     }
   });
 
+    // GET /expected-cash — totale atteso (solo contanti) della sessione attiva
+  router.get('/expected-cash', authenticate, tenantScope, async (req, res) => {
+    try {
+      const { rows: active } = await req.db.query(
+        'SELECT start_time FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
+      );
+      if (!active.length) return res.json({ expected: 0 });
+
+      const { rows } = await req.db.query(
+        `SELECT COALESCE(SUM(total), 0) AS expected FROM orders WHERE status = 'completed' AND created_at >= $1`,
+        [active[0].start_time]
+      );
+      res.json({ expected: parseFloat(rows[0].expected) });
+    } catch (err) {
+      logger.error({ err }, 'db error');
+      res.status(500).json({ error: 'db error' });
+    }
+  });
+
   // POST /start (Apertura Sessione - TRACCIATO)
   router.post('/start', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
     try {

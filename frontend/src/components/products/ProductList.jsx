@@ -1,7 +1,15 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
+import QuickEditProductModal from './modals/QuickEditProductModal';
 
-const ProductList = ({ products, addToCart, cart, lowStockThreshold = 10 }) => {
+const LONG_PRESS_MS = 1500;
+const VISIBLE_THRESHOLD_PCT = 10; // sotto questa soglia il bordo resta invisibile: evita il "flash" su un click veloce
+
+const ProductList = ({ products, addToCart, cart, lowStockThreshold = 10, setProducts }) => {
   const [activeCategory, setActiveCategory] = useState('TUTTI');
+  const [progressById, setProgressById] = useState({});
+  const [editingProduct, setEditingProduct] = useState(null);
+
+  const timers = useRef({}); // { [productId]: { raf, startTime, triggered } }
 
   const categories = useMemo(() => {
     const visible = products.filter(p => p.visible !== false);
@@ -13,6 +21,47 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 10 }) => {
     if (activeCategory === 'TUTTI') return visible;
     return visible.filter(p => (p.category || 'Generico') === activeCategory);
   }, [products, activeCategory]);
+
+  const clearPress = useCallback((id) => {
+    const t = timers.current[id];
+    if (t?.raf) cancelAnimationFrame(t.raf);
+    delete timers.current[id];
+    setProgressById(prev => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
+
+  const startPress = useCallback((product) => {
+    const id = product.id;
+    if (timers.current[id]) return; // già in corso
+    const state = { startTime: performance.now(), triggered: false, exceededThreshold: false, raf: null };
+    timers.current[id] = state;
+
+    const tick = () => {
+      const elapsed = performance.now() - state.startTime;
+      const pct = Math.min(100, (elapsed / LONG_PRESS_MS) * 100);
+      setProgressById(prev => ({ ...prev, [id]: pct }));
+      if (pct > VISIBLE_THRESHOLD_PCT) state.exceededThreshold = true;
+
+      if (pct >= 100) {
+        state.triggered = true;
+        setEditingProduct(product);
+        clearPress(id);
+        return;
+      }
+      state.raf = requestAnimationFrame(tick);
+    };
+    state.raf = requestAnimationFrame(tick);
+  }, [clearPress]);
+
+  const endPress = useCallback((id) => {
+    const t = timers.current[id];
+    const shouldBlockClick = !!(t?.triggered || t?.exceededThreshold);
+    clearPress(id);
+    return shouldBlockClick;
+  }, [clearPress]);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -47,30 +96,42 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 10 }) => {
               const nameSizeClass = nameLen > 14 ? 'text-sm' : nameLen > 9 ? 'text-base' : 'text-lg';
               const color = product.color || 'var(--accent)';
 
-              // Calcola quanti di questo prodotto specifico sono già nel carrello
               const cartQty = cart?.filter(i => i.id === product.id).reduce((sum, i) => sum + i.quantity, 0) || 0;
-
-              // Calcola lo stock rimanente in tempo reale
               const remainingStock = product.stock_enabled && product.stock !== null
                 ? product.stock - cartQty
                 : null;
-
-              // Mostra il badge se lo stock rimanente è sotto la soglia (incluso quando scende a 0)
               const showStockBadge = remainingStock !== null && remainingStock <= lowStockThreshold;
+
+              const progress = progressById[product.id] || 0;
 
               return (
                 <button
                   key={product.id}
-                  onClick={() => addToCart(product)}
+                  onClick={() => { if (!endPress(product.id)) addToCart(product); }}
+                  onMouseDown={() => startPress(product)}
+                  onMouseLeave={() => clearPress(product.id)}
+                  onTouchStart={() => startPress(product)}
+                  onTouchCancel={() => clearPress(product.id)}
+                  onContextMenu={(e) => e.preventDefault()}
                   onMouseEnter={(e) => e.currentTarget.style.setProperty('--bg-opacity', '12%')}
-                  onMouseLeave={(e) => e.currentTarget.style.setProperty('--bg-opacity', '6%')}
-                  className="relative flex flex-col rounded-xl pt-4 px-3 pb-2 border-l-4 bg-[var(--bg-card-2)] cursor-pointer border border-[var(--border)] hover:border-[var(--text-muted)]/30 active:scale-95 transition-all duration-150 text-left overflow-hidden"
+                  className="product-card relative flex flex-col rounded-xl pt-4 px-3 pb-2 border-l-4 bg-[var(--bg-card-2)] cursor-pointer border border-[var(--border)] hover:border-[var(--text-muted)]/30 active:scale-95 transition-all duration-150 text-left overflow-hidden select-none"
                   style={{
                     borderLeftColor: color,
                     backgroundColor: `color-mix(in srgb, ${color} var(--bg-opacity, 6%), var(--bg-card-2))`
                   }}
                 >
-                  {/* BADGE STOCK DINAMICO IN TINTA */}
+                  {/* Brush orizzontale long-press: si riempie da sx verso dx, stesso accent della tile */}
+                  {progress > VISIBLE_THRESHOLD_PCT && (
+                    <div
+                      className="absolute inset-y-0 left-0 pointer-events-none z-20"
+                      style={{
+                        width: `${progress}%`,
+                        backgroundColor: color,
+                        opacity: 0.22,
+                      }}
+                    />
+                  )}
+
                   {showStockBadge && (
                     <div
                       className={`absolute top-2 right-2 text-white px-2 py-0.5 rounded-lg shadow-sm border flex items-center gap-1.5 z-10 backdrop-blur-md transition-colors ${remainingStock === 0 ? 'bg-red-500 border-red-400' : 'border-white/20'}`}
@@ -90,12 +151,10 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 10 }) => {
                     </div>
                   )}
 
-                  {/* NOME PRODOTTO */}
                   <h3 className={`${nameSizeClass} font-black text-[var(--text-main)] uppercase tracking-tighter mb-2 leading-tight pr-14`}>
                     {product.name}
                   </h3>
 
-                  {/* SEZIONE PREZZO OTTIMIZZATA */}
                   <div className="w-full mt-auto pt-1 border-t border-[var(--border)] flex justify-between items-center">
                     <span className="text-[9px] font-bold text-[var(--text-muted)] uppercase leading-none">
                       Prezzo
@@ -110,6 +169,13 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 10 }) => {
           </div>
         )}
       </div>
+
+      <QuickEditProductModal
+        key={editingProduct?.id}
+        product={editingProduct}
+        onClose={() => setEditingProduct(null)}
+        onSaved={(updated) => setProducts?.(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p))}
+      />
     </div>
   );
 };

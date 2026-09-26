@@ -2,16 +2,16 @@ import React from "react";
 import { LogOut, Settings, Menu } from "lucide-react";
 
 const Header = ({ toggleSidebar, currentUser, onLogoutClick, onProfileClick, sessionName, wsConnected }) => (
-  <header className="flex items-center justify-between px-4 mb-1 mt-3 bg-transparent shrink-0">
+  <header className="flex items-center justify-between px-4 mb-1 mt-3 bg-transparent shrink-0 select-none">
 
     {/* Sinistra: hamburger + breadcrumb */}
     <div className="flex items-center gap-4">
       <button
         onClick={toggleSidebar}
-        className="xl:hidden p-2.5 bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)] rounded-2xl active:scale-95 transition-all"
+        className="xl:hidden p-2.5 bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)] rounded-2xl cursor-pointer hover:enabled:bg-[var(--bg-card-2)] enabled:active:scale-95 transition-all"
         aria-label="Menu"
       >
-        <Menu size={20} />
+        <Menu size={20} className="pointer-events-none" />
       </button>
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
@@ -44,15 +44,15 @@ const Header = ({ toggleSidebar, currentUser, onLogoutClick, onProfileClick, ses
         </div>
         <button
           onClick={onProfileClick}
-          className="p-2 hover:bg-[var(--bg-card-2)] rounded-full transition-all text-[var(--text-muted)] hover:text-[var(--text-main)] min-w-[36px] min-h-[36px] flex items-center justify-center"
+          className="p-2 hover:bg-[var(--bg-card-2)] rounded-full transition-all text-[var(--text-muted)] hover:text-[var(--text-main)] min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer enabled:active:scale-95"
         >
-          <Settings size={18} />
+          <Settings size={18} className="pointer-events-none" />
         </button>
         <button
           onClick={onLogoutClick}
-          className="p-2 hover:bg-red-500/10 text-red-500 rounded-full transition-all min-w-[36px] min-h-[36px] flex items-center justify-center"
+          className="p-2 hover:bg-red-500/10 text-red-500 rounded-full transition-all min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer enabled:active:scale-95"
         >
-          <LogOut size={18} />
+          <LogOut size={18} className="pointer-events-none" />
         </button>
       </div>
     )}

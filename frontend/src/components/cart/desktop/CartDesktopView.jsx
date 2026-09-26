@@ -191,7 +191,7 @@ const CartDesktopView = ({
                     <button
                         onClick={handleSendOrder}
                         disabled={cart.length === 0 || !sessionActive || !wsConnected}
-                        className="flex-1 h-11 px-2 bg-[var(--accent)] hover:bg-[var(--accent-hover)] cursor-pointer disabled:opacity-30 disabled:text-[var(--text-muted)] disabled:hover:cursor-not-allowed text-white rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider active:scale-[0.99] transition-all flex items-center justify-center gap-1.5 px-2"
+                        className="flex-1 h-11 px-2 bg-[var(--accent)] hover:enabled:bg-[var(--accent-hover)] cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 disabled:text-[var(--text-muted)] text-white rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider active:enabled:scale-[0.99] transition-all flex items-center justify-center gap-1.5"
                     >
                         <Send size={16} />
                         <span>Invia Ordine</span>
@@ -201,7 +201,7 @@ const CartDesktopView = ({
                     <button
                         onClick={() => cart.length > 0 && setIsClearModalOpen(true)}
                         disabled={cart.length === 0}
-                        className="flex-1 h-11 px-2 bg-[var(--error)] hover:bg-[var(--error-hover)] cursor-pointer disabled:opacity-30 disabled:text-[var(--text-muted)] disabld:hover:cursor-not-allowed text-white dark:border-red-900/40 text-red-500 hover:text-white cursor-pointer rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider transition-all disabled:opacity-30 flex items-center justify-center gap-1.5"
+                        className="flex-1 h-11 px-2 bg-[var(--error)] hover:enabled:bg-[var(--error-hover)] cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 disabled:text-[var(--text-muted)] text-white dark:border-red-900/40 rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider active:enabled:scale-[0.99] transition-all flex items-center justify-center gap-1.5"
                     >
                         <Trash size={16} />
                         <span>Svuota</span>
